@@ -116,15 +116,15 @@ function ImeiTag({ unit, printClass = "" }: { unit: Unit; printClass?: string })
     const value = tagValue(unit);
 
     return (
-        <div className={`imei-phone-tag h-[17mm] w-[37mm] overflow-hidden rounded-[3px] border border-zinc-950 bg-white px-[1.5mm] py-[1mm] text-black shadow-sm ${printClass}`}>
+        <div className={`imei-phone-tag h-[15mm] w-[34mm] overflow-hidden rounded-[3px] border border-zinc-950 bg-white px-[1.2mm] py-[0.8mm] text-black shadow-sm ${printClass}`}>
             <div className="flex items-start justify-between gap-1">
-                <p className="max-w-[24mm] truncate text-[6.5px] font-black leading-tight">{unit.product_name}</p>
-                <p className="text-[5.5px] font-black uppercase leading-tight tracking-wide">NizPhone</p>
+                <p className="max-w-[22mm] truncate text-[5.8px] font-black leading-tight">{unit.product_name}</p>
+                <p className="text-[4.8px] font-black uppercase leading-tight tracking-wide">NizPhone</p>
             </div>
             <div className="mt-[0.7mm]">
-                <Code128Barcode value={value} className="h-[8mm] w-full" />
+                <Code128Barcode value={value} className="h-[6.8mm] w-full" />
             </div>
-            <p className="mt-[0.4mm] text-center font-mono text-[6.5px] font-black leading-none tracking-tight">{tagLabel(unit)}: {value}</p>
+            <p className="mt-[0.35mm] text-center font-mono text-[5.7px] font-black leading-none tracking-tight">{tagLabel(unit)}: {value}</p>
         </div>
     );
 }
@@ -148,7 +148,7 @@ function BatchTagModal({ open, onClose, units, products, categories }: { open: b
     }), [categoryId, productId, query, units]);
     const printableUnits = mode === "all" ? scopedUnits : scopedUnits.filter(unit => selected.has(unit.id));
     const canPrint = categoryId && printableUnits.length > 0;
-    const reportPages = chunkArray(printableUnits, 48);
+    const reportPages = chunkArray(printableUnits, 80);
 
     const toggle = (id: number) => setSelected(prev => {
         const next = new Set(prev);
@@ -166,14 +166,17 @@ function BatchTagModal({ open, onClose, units, products, categories }: { open: b
             <div className="space-y-5 p-5">
                 <style>{`
                     @media print {
-                        @page { size: A4 portrait; margin: 10mm; }
+                        @page { size: A4 portrait; margin: 4mm; }
+                        html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
                         body * { visibility: hidden !important; }
                         .a4-tag-report, .a4-tag-report * { visibility: visible !important; }
-                        .a4-tag-report { position: absolute !important; inset: 0 auto auto 0 !important; width: 190mm !important; background: #fff !important; }
-                        .a4-sheet { width: 190mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: 0 !important; break-after: page; page-break-after: always; }
+                        .a4-tag-report { position: absolute !important; inset: 0 auto auto 0 !important; width: 202mm !important; background: #fff !important; }
+                        .a4-tag-report > * + * { margin-top: 0 !important; }
+                        .a4-sheet { width: 202mm !important; height: 289mm !important; min-height: 289mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; border: 0 !important; break-after: page; page-break-after: always; }
                         .a4-sheet:last-child { break-after: auto; page-break-after: auto; }
-                        .a4-grid { display: grid !important; grid-template-columns: repeat(4, 37mm) !important; gap: 2.5mm 7mm !important; }
-                        .imei-phone-tag { width: 37mm !important; height: 17mm !important; box-shadow: none !important; break-inside: avoid; }
+                        .a4-sheet-header { display: none !important; }
+                        .a4-grid { display: grid !important; grid-template-columns: repeat(5, 34mm) !important; grid-auto-rows: 15mm !important; align-content: space-between !important; justify-content: space-between !important; height: 289mm !important; gap: 0 !important; }
+                        .imei-phone-tag { width: 34mm !important; height: 15mm !important; box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
                         .no-print { display: none !important; }
                     }
                 `}</style>
@@ -263,21 +266,21 @@ function BatchTagModal({ open, onClose, units, products, categories }: { open: b
                 )}
 
                 <div className="no-print rounded-2xl border border-border p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <p className="font-bold">Preview</p>
-                            <p className="text-xs text-muted-foreground">Print size: 40mm × 20mm. Barcode value is IMEI when available.</p>
+                            <p className="font-bold">Ready to generate</p>
+                            <p className="text-xs text-muted-foreground">
+                                {categoryId
+                                    ? `${printableUnits.length} tag${printableUnits.length === 1 ? "" : "s"} ready. Barcode value is IMEI when available.`
+                                    : "Choose a category first, then generate the full A4 tag sheet."}
+                            </p>
                         </div>
                         <Button type="button" onClick={() => setShowReport(true)} disabled={!canPrint}>
                             <Printer className="mr-2 h-4 w-4" />Generate A4 PDF view
                         </Button>
                     </div>
-                    {!categoryId && <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">Choose a category first to load printable tags.</p>}
-                    {categoryId && printableUnits.length === 0 && <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">No tags selected yet.</p>}
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {printableUnits.slice(0, 8).map(unit => <ImeiTag key={unit.id} unit={unit} />)}
-                    </div>
-                    {printableUnits.length > 8 && <p className="mt-3 text-center text-xs text-muted-foreground">Showing first 8 in preview. A4 report includes all {printableUnits.length} tags.</p>}
+                    {!categoryId && <p className="mt-4 rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">No barcode preview shown here. The full sheet will appear after generation.</p>}
+                    {categoryId && printableUnits.length === 0 && <p className="mt-4 rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">No tags selected yet.</p>}
                 </div>
 
                 {showReport && (
@@ -285,7 +288,7 @@ function BatchTagModal({ open, onClose, units, products, categories }: { open: b
                         <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p className="font-bold">A4 PDF/report preview</p>
-                                <p className="text-xs text-muted-foreground">{reportPages.length} page{reportPages.length === 1 ? "" : "s"} · {printableUnits.length} tag{printableUnits.length === 1 ? "" : "s"} · 48 tags per A4 page</p>
+                                <p className="text-xs text-muted-foreground">{reportPages.length} page{reportPages.length === 1 ? "" : "s"} · {printableUnits.length} tag{printableUnits.length === 1 ? "" : "s"} · up to 80 tags per A4 page</p>
                             </div>
                             <Button type="button" variant="outline" onClick={() => window.print()}>
                                 <Printer className="mr-2 h-4 w-4" />Print / Save as PDF
@@ -293,15 +296,15 @@ function BatchTagModal({ open, onClose, units, products, categories }: { open: b
                         </div>
                         <div className="a4-tag-report space-y-6">
                             {reportPages.map((pageUnits, pageIndex) => (
-                                <div key={pageIndex} className="a4-sheet mx-auto min-h-[297mm] w-[210mm] rounded-sm border border-border bg-white p-[10mm] text-black shadow-xl">
-                                    <div className="mb-[5mm] flex items-end justify-between border-b border-zinc-300 pb-[3mm]">
+                                <div key={pageIndex} className="a4-sheet mx-auto min-h-[297mm] w-[210mm] rounded-sm border border-border bg-white p-[4mm] text-black shadow-xl">
+                                    <div className="a4-sheet-header mb-[4mm] flex items-end justify-between border-b border-zinc-300 pb-[3mm]">
                                         <div>
                                             <p className="text-[13px] font-black uppercase tracking-[0.12em]">NizPhone IMEI Tag Sheet</p>
                                             <p className="mt-1 text-[10px] text-zinc-600">Small phone-back barcode labels · Page {pageIndex + 1} of {reportPages.length}</p>
                                         </div>
                                         <p className="text-[10px] font-bold text-zinc-500">{new Date().toLocaleDateString()}</p>
                                     </div>
-                                    <div className="a4-grid grid grid-cols-4 gap-x-[7mm] gap-y-[2.5mm]">
+                                    <div className="a4-grid grid h-[276mm] grid-cols-5 content-between justify-between">
                                         {pageUnits.map(unit => <ImeiTag key={unit.id} unit={unit} />)}
                                     </div>
                                 </div>
@@ -380,12 +383,14 @@ export default function DeviceUnitsIndex({ units, tagUnits, stats, products, cat
         <div className="space-y-4 p-4">
             <style>{`
                 @media print {
-                    @page { size: A4 portrait; margin: 10mm; }
+                    @page { size: A4 portrait; margin: 4mm; }
+                    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
                     body * { visibility: hidden !important; }
                     .single-a4-report, .single-a4-report * { visibility: visible !important; }
-                    .single-a4-report { position: absolute !important; inset: 0 auto auto 0 !important; width: 190mm !important; background: #fff !important; }
-                    .single-a4-sheet { width: 190mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: 0 !important; }
-                    .imei-phone-tag { width: 37mm !important; height: 17mm !important; box-shadow: none !important; break-inside: avoid; }
+                    .single-a4-report { position: absolute !important; inset: 0 auto auto 0 !important; width: 202mm !important; background: #fff !important; }
+                    .single-a4-sheet { width: 202mm !important; height: 289mm !important; min-height: 289mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; border: 0 !important; }
+                    .single-a4-sheet-header { display: none !important; }
+                    .imei-phone-tag { width: 34mm !important; height: 15mm !important; box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
                     .no-print { display: none !important; }
                 }
             `}</style>
@@ -399,8 +404,8 @@ export default function DeviceUnitsIndex({ units, tagUnits, stats, products, cat
                 </p>
             </div>
             <div className="single-a4-report overflow-x-auto rounded-2xl bg-muted/30 p-4">
-                <div className="single-a4-sheet mx-auto min-h-[297mm] w-[210mm] rounded-sm border border-border bg-white p-[10mm] text-black shadow-xl">
-                    <div className="mb-[6mm] flex items-start justify-between border-b border-zinc-200 pb-[4mm]">
+                <div className="single-a4-sheet mx-auto min-h-[297mm] w-[210mm] rounded-sm border border-border bg-white p-[4mm] text-black shadow-xl">
+                    <div className="single-a4-sheet-header mb-[6mm] flex items-start justify-between border-b border-zinc-200 pb-[4mm]">
                         <div>
                             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">NizPhone Gadgets</p>
                             <h3 className="text-lg font-black">Single IMEI Tag Sheet</h3>
