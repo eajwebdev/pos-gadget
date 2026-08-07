@@ -45,6 +45,7 @@ class User extends Authenticatable
     const ROLE_ADMINISTRATOR = 'administrator';
     const ROLE_MANAGER       = 'manager';
     const ROLE_CASHIER       = 'cashier';
+    const MENU_POS           = '2';
 
     public static function roles(): array
     {
@@ -136,16 +137,20 @@ class User extends Authenticatable
 
     public function hasAccess(string|int $menuId): bool
     {
+        if ((string) $menuId === self::MENU_POS && ($this->isSuperAdmin() || $this->isAdministrator())) {
+            return false;
+        }
+
         if ($this->isSuperAdmin()) return true;
         return in_array((string) $menuId, $this->access ?? []);
     }
 
     public function getAccessibleMenus(): array
     {
-        if ($this->isSuperAdmin()) return MenuHelper::all();
-        return array_intersect_key(
+        return array_filter(
             MenuHelper::all(),
-            array_flip($this->access ?? [])
+            fn ($label, $id) => $this->hasAccess($id),
+            ARRAY_FILTER_USE_BOTH
         );
     }
 

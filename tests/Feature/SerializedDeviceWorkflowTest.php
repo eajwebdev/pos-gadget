@@ -34,8 +34,8 @@ class SerializedDeviceWorkflowTest extends TestCase
         $this->branch = Branch::create(['supplier_id' => $supplier->id, 'name' => 'Main', 'code' => 'MAIN', 'business_type' => Branch::TYPE_STORE]);
         $this->otherBranch = Branch::create(['supplier_id' => $supplier->id, 'name' => 'Branch 2', 'code' => 'B2', 'business_type' => Branch::TYPE_STORE]);
         $this->user = User::create([
-            'fname' => 'Edwin', 'lname' => 'Admin', 'username' => 'edwin', 'password' => 'password',
-            'role' => User::ROLE_SUPER_ADMIN, 'branch_id' => $this->branch->id, 'access' => [],
+            'fname' => 'Carlo', 'lname' => 'Cashier', 'username' => 'cashier', 'password' => 'password',
+            'role' => User::ROLE_CASHIER, 'branch_id' => $this->branch->id, 'access' => [User::MENU_POS, '40', '41'],
         ]);
         CashSession::create([
             'session_number' => 'SES-TEST-MAIN', 'user_id' => $this->user->id, 'branch_id' => $this->branch->id,

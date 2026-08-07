@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Helpers\MenuHelper;
 use App\Models\Promo;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
@@ -98,9 +97,7 @@ class HandleInertiaRequests extends Middleware
 
                     // Menu access array — used by hasAccess() in the sidebar
                     // super_admin gets all menu IDs as strings; others get only what's assigned
-                    'access' => $user->isSuperAdmin()
-                        ? array_values(array_map('strval', array_keys(MenuHelper::all())))
-                        : ($user->access ?? []),
+                    'access' => array_values(array_map('strval', array_keys($user->getAccessibleMenus()))),
 
                     // Boolean role helpers
                     'is_super_admin'   => $user->isSuperAdmin(),

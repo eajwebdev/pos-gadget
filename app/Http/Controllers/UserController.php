@@ -18,6 +18,9 @@ use Inertia\Response;
 
 class UserController extends Controller
 {
+    private const PROTECTED_ROLE = User::ROLE_SUPER_ADMIN;
+    private const POS_MENU_ID = User::MENU_POS;
+
     // ─── Menu IDs that only Super Admin can assign ────────────────────────────
     // Administrator can manage users but cannot grant access to these menus.
 
@@ -34,6 +37,7 @@ class UserController extends Controller
         $isSuper = $actor->isSuperAdmin();
 
         $users = User::with('branch:id,name,code,business_type')
+            ->where('role', '!=', self::PROTECTED_ROLE)
             ->when($this->scopedBranchId(), fn($q, $id) => $q->where('branch_id', $id))
             ->latest('created_at')
             ->get()
@@ -63,7 +67,7 @@ class UserController extends Controller
         // Super Admin → all roles
         // Administrator → only manager and cashier (cannot promote to admin-tier)
         $assignableRoles = $isSuper
-            ? User::roles()
+            ? $this->manageableRoles()
             : collect(User::roles())->only(['manager', 'cashier'])->toArray();
 
         // Menus the actor can grant, filtered by enabled modules
@@ -103,7 +107,7 @@ class UserController extends Controller
         }
 
         $allowedRoles = $isSuper
-            ? array_keys(User::roles())
+            ? array_keys($this->manageableRoles())
             : ['manager', 'cashier'];
 
         $validated = $request->validate([
@@ -124,7 +128,7 @@ class UserController extends Controller
         ]);
 
         // Strip super-admin-only menus if not super admin
-        $access = $this->sanitizeAccess($validated['access'] ?? [], $isSuper);
+        $access = $this->sanitizeAccess($validated['access'] ?? [], $isSuper, $validated['role']);
 
         $user = User::create([
             'fname'      => trim($validated['fname']),
@@ -163,13 +167,12 @@ class UserController extends Controller
             abort(403, 'Only administrators can update users.');
         }
 
-        // Administrator cannot edit a super_admin account
-        if (! $isSuper && $user->isSuperAdmin()) {
-            abort(403, 'You cannot edit a Super Admin account.');
+        if ($user->isSuperAdmin()) {
+            abort(403, 'Super Admin accounts are protected and cannot be edited here.');
         }
 
         $allowedRoles = $isSuper
-            ? array_keys(User::roles())
+            ? array_keys($this->manageableRoles())
             : ['manager', 'cashier'];
 
         $validated = $request->validate([
@@ -188,7 +191,7 @@ class UserController extends Controller
             'branch_id.required' => 'Please select a branch.',
         ]);
 
-        $access = $this->sanitizeAccess($validated['access'] ?? [], $isSuper);
+        $access = $this->sanitizeAccess($validated['access'] ?? [], $isSuper, $validated['role']);
 
         $updateData = [
             'fname'      => trim($validated['fname']),
@@ -245,8 +248,12 @@ class UserController extends Controller
             throw ValidationException::withMessages(['error' => 'You cannot delete your own account.']);
         }
 
-        // Administrator cannot delete super_admin or another administrator
-        if (! $actor->isSuperAdmin() && ($user->isSuperAdmin() || $user->isAdministrator())) {
+        if ($user->isSuperAdmin()) {
+            abort(403, 'Super Admin accounts are protected and cannot be deleted here.');
+        }
+
+        // Administrator cannot delete another administrator
+        if (! $actor->isSuperAdmin() && $user->isAdministrator()) {
             abort(403, 'You cannot delete this account.');
         }
 
@@ -276,13 +283,24 @@ class UserController extends Controller
     /**
      * Strip super-admin-only menu IDs from access list when actor is not super admin.
      */
-    private function sanitizeAccess(array $access, bool $isSuper): array
+    private function sanitizeAccess(array $access, bool $isSuper, ?string $targetRole = null): array
     {
-        if ($isSuper) return $access;
+        $blocked = $isSuper ? [] : self::SUPER_ADMIN_ONLY_MENUS;
+
+        if (in_array($targetRole, [User::ROLE_SUPER_ADMIN, User::ROLE_ADMINISTRATOR], true)) {
+            $blocked[] = self::POS_MENU_ID;
+        }
 
         return array_values(
-            array_filter($access, fn ($id) => ! in_array((string) $id, self::SUPER_ADMIN_ONLY_MENUS))
+            array_filter($access, fn ($id) => ! in_array((string) $id, $blocked, true))
         );
+    }
+
+    private function manageableRoles(): array
+    {
+        return collect(User::roles())
+            ->except([self::PROTECTED_ROLE])
+            ->toArray();
     }
 
     /**
