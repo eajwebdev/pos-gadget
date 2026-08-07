@@ -1,44 +1,41 @@
 <?php
 
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\LoginAuthController;
+use App\Http\Controllers\AiAssistantController;
 use App\Http\Controllers\BranchController;
-use App\Http\Controllers\SystemSettingsController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\BrochureController;
+use App\Http\Controllers\CashCountController;
+use App\Http\Controllers\CashSessionController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeviceServiceController;
+use App\Http\Controllers\DeviceUnitController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\LoginAuthController;
+use App\Http\Controllers\LogsController;
+use App\Http\Controllers\PettyCashController;
+use App\Http\Controllers\PettyCashFundController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PromoController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\ShopController;
-use App\Http\Controllers\SalesOrderController;
-use App\Http\Controllers\LogsController;
-use App\Http\Controllers\CashSessionController;
-use App\Http\Controllers\CashCountController;
-use App\Http\Controllers\PettyCashController;
-use App\Http\Controllers\PettyCashFundController;
-use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\ExpenseCategoryController;
-use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PurchaseController;
-use App\Http\Controllers\StockAdjustmentController;
-use App\Http\Controllers\AiAssistantController;
-use App\Http\Controllers\DiningTableController;
-use App\Http\Controllers\TableOrderController;
-use App\Http\Controllers\InstallmentController;
-use App\Http\Controllers\InventoryController;
-use App\Http\Controllers\StockTransferController;
-use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\StockCountController;
-use App\Http\Controllers\BrochureController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ServicesController;
-use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ShopController;
+use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SystemSettingsController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
+use Illuminate\Support\Facades\Route;
 
 // PUBLIC
 Route::middleware('guest')->group(function () {
-    Route::get('/', fn() => Inertia::render('Login'))->name('login');
+    Route::get('/', [LoginAuthController::class, 'getLogin'])->name('login');
     Route::post('/login', [LoginAuthController::class, 'postLogin'])->name('login.post');
 });
 
@@ -52,8 +49,8 @@ Route::middleware('auth')->group(function () {
 
     // Dashboard
     Route::middleware('access:1')->group(function () {
-        Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
-        Route::get('/dashboard/data', [\App\Http\Controllers\DashboardController::class, 'data'])->name('dashboard.data');
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     });
 
     // POS
@@ -70,12 +67,6 @@ Route::middleware('auth')->group(function () {
     // Sales History
     Route::middleware('access:3')->prefix('sales')->name('sales.')->controller(PosController::class)->group(function () {
         Route::get('/history', 'history')->name('history');
-    });
-
-    // Table Orders
-    Route::middleware('access:4')->prefix('table-orders')->name('table-orders.')->controller(TableOrderController::class)->group(function () {
-        Route::get('/',  'index')->name('index');
-        Route::post('/', 'store')->name('store');
     });
 
     // Shop Orders
@@ -149,7 +140,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales', 'salesReport')->name('sales');
         Route::get('/inventory', 'inventoryReport')->name('inventory');
         Route::get('/expenses', 'expenseReport')->name('expenses');
-        Route::get('/ingredient-usage', 'ingredientUsageReport')->name('ingredient-usage');
         Route::get('/stock-loss', 'stockLossReport')->name('stock-loss');
 
         // Live PDF Previews (opens in new tab)
@@ -157,7 +147,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales/pdf', 'salesReportPdf')->name('sales.pdf');
         Route::get('/inventory/pdf', 'inventoryReportPdf')->name('inventory.pdf');
         Route::get('/expenses/pdf', 'expenseReportPdf')->name('expenses.pdf');
-        Route::get('/ingredient-usage/pdf', 'ingredientUsageReportPdf')->name('ingredient-usage.pdf');
     });
 
     // Activity Logs
@@ -183,11 +172,11 @@ Route::middleware('auth')->group(function () {
         // Supplier order management
         Route::get('/{supplier}/orders', 'orders')->name('orders');
         Route::prefix('orders')->name('orders.')->group(function () {
-            Route::post('/{order}/confirm',  'confirmOrder')->name('confirm');
-            Route::post('/{order}/reject',   'rejectOrder')->name('reject');
-            Route::post('/{order}/shipped',  'markShipped')->name('shipped');
+            Route::post('/{order}/confirm', 'confirmOrder')->name('confirm');
+            Route::post('/{order}/reject', 'rejectOrder')->name('reject');
+            Route::post('/{order}/shipped', 'markShipped')->name('shipped');
             Route::post('/{order}/complete', 'completeOrder')->name('complete');
-            Route::get('/{order}/receipt',   'orderReceipt')->name('receipt');
+            Route::get('/{order}/receipt', 'orderReceipt')->name('receipt');
         });
     });
 
@@ -207,14 +196,6 @@ Route::middleware('auth')->group(function () {
         Route::patch('/{branch}', 'update')->name('update');
         Route::patch('/{branch}/toggle', 'toggleActive')->name('toggle');
         Route::delete('/{branch}', 'destroy')->name('destroy');
-    });
-
-    // Dining Tables
-    Route::middleware('access:26')->prefix('dining-tables')->name('dining-tables.')->controller(DiningTableController::class)->group(function () {
-        Route::get('/',                  'index')->name('index');
-        Route::post('/',                 'store')->name('store');
-        Route::patch('/{diningTable}',   'update')->name('update');
-        Route::delete('/{diningTable}',  'destroy')->name('destroy');
     });
 
     // System Settings
@@ -256,12 +237,12 @@ Route::middleware('auth')->group(function () {
 
     // Stock Count (Physical Inventory) — ID 36
     Route::middleware('access:36')->prefix('stock-count')->name('stock-count.')->controller(StockCountController::class)->group(function () {
-        Route::get('/',                      'index')->name('index');
-        Route::post('/start',                'start')->name('start');
-        Route::get('/{session}',             'show')->name('show');
-        Route::patch('/{session}/save',      'save')->name('save');
-        Route::post('/{session}/commit',     'commit')->name('commit');
-        Route::delete('/{session}',          'cancel')->name('cancel');
+        Route::get('/', 'index')->name('index');
+        Route::post('/start', 'start')->name('start');
+        Route::get('/{session}', 'show')->name('show');
+        Route::patch('/{session}/save', 'save')->name('save');
+        Route::post('/{session}/commit', 'commit')->name('commit');
+        Route::delete('/{session}', 'cancel')->name('cancel');
     });
 
     // Warehouses — ID 35 (Premium)
@@ -281,10 +262,10 @@ Route::middleware('auth')->group(function () {
 
     // Services — ID 38
     Route::middleware('access:38')->prefix('services')->name('services.')->controller(ServicesController::class)->group(function () {
-        Route::get('/',              'index'  )->name('index');
-        Route::post('/',             'store'  )->name('store');
-        Route::post('/{service}',    'update' )->name('update');
-        Route::delete('/{service}',  'destroy')->name('destroy');
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::post('/{service}', 'update')->name('update');
+        Route::delete('/{service}', 'destroy')->name('destroy');
     });
 
     Route::middleware('access:39')->prefix('customers')->name('customers.')->controller(CustomerController::class)->group(function () {
@@ -294,6 +275,22 @@ Route::middleware('auth')->group(function () {
         Route::patch('/{customer}', 'update')->name('update');
         Route::delete('/{customer}', 'destroy')->name('destroy');
         Route::post('/{customer}/payments', 'pay')->name('payments.store');
+    });
+
+    // Serialized gadget inventory (IMEI / serial per physical unit)
+    Route::middleware('access:40')->prefix('device-units')->name('device-units.')->controller(DeviceUnitController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/{deviceUnit}', 'update')->name('update');
+        Route::post('/{deviceUnit}/transfer', 'transfer')->name('transfer');
+        Route::delete('/{deviceUnit}', 'destroy')->name('destroy');
+    });
+
+    // Warranty claims, repairs, returns, and after-sales history
+    Route::middleware('access:41')->prefix('device-services')->name('device-services.')->controller(DeviceServiceController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/{deviceService}', 'update')->name('update');
     });
 
     // Promos

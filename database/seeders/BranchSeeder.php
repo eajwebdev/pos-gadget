@@ -9,14 +9,10 @@ use Illuminate\Database\Seeder;
 class BranchSeeder extends Seeder
 {
     /**
-     * Business type auto-applies feature flags via Branch::booted():
+     * General branch types auto-apply POS feature flags via Branch::booted().
      *
-     *   retail     → use_variants=true, use_expiry_tracking=true, use_bundles=true
-     *   cafe       → use_variants=true, use_recipe_system=true
-     *   restaurant → use_recipe_system=true, use_table_ordering=true
-     *   mixed      → all flags true
-     *
-     * Override any flag explicitly in the array below.
+     * IMEI / serial tracking is handled per product unit in Device Units and POS.
+     * Table ordering and recipe/BOM features are intentionally disabled for this setup.
      */
     public function run(): void
     {
@@ -25,69 +21,98 @@ class BranchSeeder extends Seeder
         $xyz  = Supplier::where('name', 'XYZ Wholesale')->first();
 
         $branches = [
-
-            // ── COOP Main Campus — cafe WITH dine-in tables ────────
-            // Overrides: use_table_ordering=true (cafe defaults to false)
             [
-                'supplier_id'        => $coop?->id,
-                'name'               => 'COOP Main Campus',
-                'code'               => 'CMC',
-                'address'            => 'Main Building, Ground Floor',
-                'phone'              => '09171234501',
-                'contact_person'     => 'Ana Rivera',
-                'is_active'          => true,
-                'business_type'      => Branch::TYPE_CAFE,
-                'use_table_ordering' => true, // override: this cafe has tables
+                'supplier_id'           => $coop?->id,
+                'name'                  => 'NizPhone Main Store',
+                'code'                  => 'CMC',
+                'address'               => 'Main Building, Ground Floor',
+                'phone'                 => '09171234501',
+                'contact_person'        => 'Ana Rivera',
+                'is_active'             => true,
+                'business_type'         => Branch::TYPE_STORE,
+                'use_table_ordering'    => false,
+                'use_variants'          => true,
+                'use_expiry_tracking'   => false,
+                'use_recipe_system'     => false,
+                'use_bundles'           => true,
             ],
-
-            // ── COOP Annex — cafe, takeout/kiosk only ─────────────
-            // Auto-flags: use_variants=true, use_recipe_system=true
             [
-                'supplier_id'   => $coop?->id,
-                'name'          => 'COOP Annex',
-                'code'          => 'CAN',
-                'address'       => 'Annex Building, Room 101',
-                'phone'         => '09171234502',
-                'contact_person'=> 'Ben Torres',
-                'is_active'     => true,
-                'business_type' => Branch::TYPE_CAFE,
+                'supplier_id'           => $coop?->id,
+                'name'                  => 'NizPhone Branch Store',
+                'code'                  => 'CAN',
+                'address'               => 'Annex Building, Room 101',
+                'phone'                 => '09171234502',
+                'contact_person'        => 'Ben Torres',
+                'is_active'             => true,
+                'business_type'         => Branch::TYPE_STORE,
+                'use_table_ordering'    => false,
+                'use_variants'          => true,
+                'use_expiry_tracking'   => false,
+                'use_recipe_system'     => false,
+                'use_bundles'           => true,
             ],
-
-            // ── ABC Main Store — retail / grocery ─────────────────
-            // Auto-flags: use_variants=true, use_expiry_tracking=true, use_bundles=true
             [
-                'supplier_id'   => $abc?->id,
-                'name'          => 'ABC Main Store',
-                'code'          => 'ABC1',
-                'address'       => '123 Commerce St., City Center',
-                'phone'         => '09281234501',
-                'contact_person'=> 'Maria Santos',
-                'is_active'     => true,
-                'business_type' => Branch::TYPE_RETAIL,
+                'supplier_id'           => $abc?->id,
+                'name'                  => 'NizPhone Sales Branch',
+                'code'                  => 'ABC1',
+                'address'               => '123 Commerce St., City Center',
+                'phone'                 => '09281234501',
+                'contact_person'        => 'Maria Santos',
+                'is_active'             => true,
+                'business_type'         => Branch::TYPE_STORE,
+                'use_table_ordering'    => false,
+                'use_variants'          => true,
+                'use_expiry_tracking'   => false,
+                'use_recipe_system'     => false,
+                'use_bundles'           => true,
             ],
-
-            // ── XYZ Warehouse — hardware / wholesale ──────────────
-            // Overrides: use_variants=false, use_expiry_tracking=false
-            // (hardware doesn't need sizes or expiry dates)
             [
-                'supplier_id'         => $xyz?->id,
-                'name'                => 'XYZ Warehouse',
-                'code'                => 'XYZ1',
-                'address'             => '456 Trade Ave., Uptown',
-                'phone'               => '09391234501',
-                'contact_person'      => 'Pedro Reyes',
-                'is_active'           => true,
-                'business_type'       => Branch::TYPE_RETAIL,
-                'use_variants'        => false,
-                'use_expiry_tracking' => false,
+                'supplier_id'           => $xyz?->id,
+                'name'                  => 'NizPhone Outlet Store',
+                'code'                  => 'XYZ1',
+                'address'               => '456 Trade Ave., Uptown',
+                'phone'                 => '09391234501',
+                'contact_person'        => 'Pedro Reyes',
+                'is_active'             => true,
+                'business_type'         => Branch::TYPE_STORE,
+                'use_table_ordering'    => false,
+                'use_variants'          => true,
+                'use_expiry_tracking'   => false,
+                'use_recipe_system'     => false,
+                'use_bundles'           => true,
             ],
         ];
 
         foreach ($branches as $data) {
-            if (!$data['supplier_id']) continue;
-            Branch::firstOrCreate(['code' => $data['code']], $data);
+            if (!$data['supplier_id']) {
+                continue;
+            }
+
+            Branch::updateOrCreate(['code' => $data['code']], $data);
         }
 
-        $this->command->info('✓ Branches seeded (' . count($branches) . ')');
+        Branch::query()
+            ->whereIn('business_type', [
+                'gadget_store', 'phone_store', 'tablet_store', 'laptop_store', 'accessories_store', 'warehouse',
+                'retail', 'grocery', 'sari_sari', 'cafe', 'restaurant', 'food_stall',
+                'bar', 'bakery', 'pharmacy', 'salon', 'laundry', 'hardware', 'school', 'mixed',
+            ])
+            ->update([
+                'business_type'       => Branch::TYPE_STORE,
+                'use_table_ordering'  => false,
+                'use_expiry_tracking' => false,
+                'use_recipe_system'   => false,
+            ]);
+
+        Branch::query()
+            ->where('business_type', 'repair_service')
+            ->update([
+                'business_type'       => Branch::TYPE_SERVICE_CENTER,
+                'use_table_ordering'  => false,
+                'use_expiry_tracking' => false,
+                'use_recipe_system'   => false,
+            ]);
+
+        $this->command->info('✓ General branches seeded/updated (' . count($branches) . ')');
     }
 }

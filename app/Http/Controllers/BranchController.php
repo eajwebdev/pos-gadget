@@ -31,7 +31,7 @@ class BranchController extends Controller
                 'phone'           => $b->phone,
                 'contact_person'  => $b->contact_person,
                 'is_active'       => $b->is_active,
-                'business_type'   => $b->business_type,
+                'business_type'   => Branch::normalizeBusinessType($b->business_type),
                 'business_type_label' => $b->business_type_label,
                 'supplier_id'     => $b->supplier_id,
                 'supplier'        => $b->supplier
@@ -61,6 +61,10 @@ class BranchController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $request->merge([
+            'business_type' => Branch::normalizeBusinessType($request->input('business_type')),
+        ]);
+
         $validated = $request->validate([
             'name'             => ['required', 'string', 'max:255', 'unique:branches,name'],
             'code'             => ['required', 'string', 'max:20', 'unique:branches,code'],
@@ -117,6 +121,10 @@ class BranchController extends Controller
 
     public function update(Request $request, Branch $branch): RedirectResponse
     {
+        $request->merge([
+            'business_type' => Branch::normalizeBusinessType($request->input('business_type')),
+        ]);
+
         $validated = $request->validate([
             'name'            => ['required', 'string', 'max:255', Rule::unique('branches', 'name')->ignore($branch->id)],
             'code'            => ['required', 'string', 'max:20',  Rule::unique('branches', 'code')->ignore($branch->id)],

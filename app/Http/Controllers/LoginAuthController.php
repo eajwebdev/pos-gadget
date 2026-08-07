@@ -89,7 +89,19 @@ class LoginAuthController extends Controller
             'url'        => $request->fullUrl(),
         ]);
 
-        return redirect()->to($this->defaultRouteFor($user));
+        $home = $this->defaultRouteFor($user);
+
+        if ($home === null) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'username' => 'Your account has no valid menu access assigned. Please contact the administrator.',
+            ])->onlyInput('username');
+        }
+
+        return redirect()->to($home);
     }
 
     public function postLogout(Request $request): RedirectResponse
@@ -126,14 +138,14 @@ class LoginAuthController extends Controller
         return Str::lower($request->input('username')) . '|' . $request->ip();
     }
 
-    private function defaultRouteFor(\App\Models\User $user): string
+    private function defaultRouteFor(\App\Models\User $user): ?string
     {
         if ($user->isSuperAdmin()) {
             return route('dashboard');
         }
 
         // Cashiers always land on POS — never on dashboard
-        if ($user->isCashier()) {
+        if ($user->isCashier() && $user->hasAccess(2)) {
             return route('pos.index');
         }
 
@@ -159,6 +171,6 @@ class LoginAuthController extends Controller
             }
         }
 
-        return route('dashboard');
+        return null;
     }
 }

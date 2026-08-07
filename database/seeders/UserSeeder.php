@@ -9,162 +9,114 @@ use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
-    /**
-     * Roles:
-     *   super_admin   — no branch, bypasses all access checks, full system
-     *   administrator — full branch admin (products, users, orders, reports)
-     *   manager       — approves expenses & petty cash, verifies cash counts
-     *   cashier       — POS only: sales, cash session, cash count, petty cash requests
-     */
     public function run(): void
     {
-        $cmc  = Branch::where('code', 'CMC')->first();
-        $can  = Branch::where('code', 'CAN')->first();
-        $abc1 = Branch::where('code', 'ABC1')->first();
-        $xyz1 = Branch::where('code', 'XYZ1')->first();
+        $branch = Branch::where('code', 'ABC1')->first()
+            ?? Branch::where('is_active', true)->orderBy('id')->first();
+
+        $fullAccess = [
+            '1', '2', '3', '5', '6', '12', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25',
+            '27', '28', '29', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41',
+        ];
+
+        $managerAccess = [
+            '1', '2', '3', '6', '12', '14', '15', '16', '17', '18', '19', '20', '22', '24', '29', '31', '32',
+            '33', '34', '36', '38', '39', '40', '41',
+        ];
+
+        $cashierAccess = ['2', '3', '14', '15', '16', '29', '32', '39', '40', '41'];
+        $staffAccess = ['2', '3', '33', '34', '36', '38', '39', '40', '41'];
 
         $users = [
-
-            // ── Super Admin ────────────────────────────────────────
             [
-                'fname'     => 'System',
-                'lname'     => 'Administrator',
-                'username'  => 'superadmin',
-                'password'  => Hash::make('superadmin123'),
-                'role'      => User::ROLE_SUPER_ADMIN,
+                'fname' => 'System',
+                'lname' => 'Administrator',
+                'username' => 'superadmin',
+                'password' => 'superadmin',
+                'role' => User::ROLE_SUPER_ADMIN,
                 'branch_id' => null,
-                'access'    => [],
-            ],
-
-            // ── Administrators ─────────────────────────────────────
-            [
-                'fname'     => 'Admin',
-                'lname'     => 'COOP Main',
-                'username'  => 'admin.coop.main',
-                'password'  => Hash::make('admin123'),
-                'role'      => User::ROLE_ADMINISTRATOR,
-                'branch_id' => $cmc?->id,
-                'access'    => [],
+                'access' => [],
+                'pos_layout' => 'grid',
             ],
             [
-                'fname'     => 'Admin',
-                'lname'     => 'COOP Annex',
-                'username'  => 'admin.coop.annex',
-                'password'  => Hash::make('admin123'),
-                'role'      => User::ROLE_ADMINISTRATOR,
-                'branch_id' => $can?->id,
-                'access'    => [],
+                'fname' => 'NizPhone',
+                'lname' => 'Admin',
+                'username' => 'admin',
+                'password' => 'admin',
+                'role' => User::ROLE_ADMINISTRATOR,
+                'branch_id' => $branch?->id,
+                'access' => $fullAccess,
+                'pos_layout' => 'grid',
             ],
             [
-                'fname'     => 'Admin',
-                'lname'     => 'ABC Store',
-                'username'  => 'admin.abc',
-                'password'  => Hash::make('admin123'),
-                'role'      => User::ROLE_ADMINISTRATOR,
-                'branch_id' => $abc1?->id,
-                'access'    => [],
+                'fname' => 'NizPhone',
+                'lname' => 'Manager',
+                'username' => 'manager',
+                'password' => 'manager',
+                'role' => User::ROLE_MANAGER,
+                'branch_id' => $branch?->id,
+                'access' => $managerAccess,
+                'pos_layout' => 'grid',
             ],
             [
-                'fname'     => 'Admin',
-                'lname'     => 'XYZ Warehouse',
-                'username'  => 'admin.xyz',
-                'password'  => Hash::make('admin123'),
-                'role'      => User::ROLE_ADMINISTRATOR,
-                'branch_id' => $xyz1?->id,
-                'access'    => [],
-            ],
-
-            // ── Managers ───────────────────────────────────────────
-            [
-                'fname'     => 'Ana',
-                'lname'     => 'Rivera',
-                'username'  => 'ana.manager',
-                'password'  => Hash::make('manager123'),
-                'role'      => User::ROLE_MANAGER,
-                'branch_id' => $cmc?->id,
-                'access'    => [],
+                'fname' => 'NizPhone',
+                'lname' => 'Cashier',
+                'username' => 'cashier',
+                'password' => 'cashier',
+                'role' => User::ROLE_CASHIER,
+                'branch_id' => $branch?->id,
+                'access' => $cashierAccess,
+                'pos_layout' => 'grid',
             ],
             [
-                'fname'     => 'Ben',
-                'lname'     => 'Torres',
-                'username'  => 'ben.manager',
-                'password'  => Hash::make('manager123'),
-                'role'      => User::ROLE_MANAGER,
-                'branch_id' => $can?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Maria',
-                'lname'     => 'Santos',
-                'username'  => 'maria.manager',
-                'password'  => Hash::make('manager123'),
-                'role'      => User::ROLE_MANAGER,
-                'branch_id' => $abc1?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Pedro',
-                'lname'     => 'Reyes',
-                'username'  => 'pedro.manager',
-                'password'  => Hash::make('manager123'),
-                'role'      => User::ROLE_MANAGER,
-                'branch_id' => $xyz1?->id,
-                'access'    => [],
-            ],
-
-            // ── Cashiers ───────────────────────────────────────────
-            // CMC has 2 cashiers — busy dine-in cafe
-            [
-                'fname'     => 'Carlo',
-                'lname'     => 'Mendoza',
-                'username'  => 'carlo.cashier',
-                'password'  => Hash::make('cashier123'),
-                'role'      => User::ROLE_CASHIER,
-                'branch_id' => $cmc?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Diana',
-                'lname'     => 'Cruz',
-                'username'  => 'diana.cashier',
-                'password'  => Hash::make('cashier123'),
-                'role'      => User::ROLE_CASHIER,
-                'branch_id' => $cmc?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Ella',
-                'lname'     => 'Bautista',
-                'username'  => 'ella.cashier',
-                'password'  => Hash::make('cashier123'),
-                'role'      => User::ROLE_CASHIER,
-                'branch_id' => $can?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Frank',
-                'lname'     => 'Lim',
-                'username'  => 'frank.cashier',
-                'password'  => Hash::make('cashier123'),
-                'role'      => User::ROLE_CASHIER,
-                'branch_id' => $abc1?->id,
-                'access'    => [],
-            ],
-            [
-                'fname'     => 'Grace',
-                'lname'     => 'Tan',
-                'username'  => 'grace.cashier',
-                'password'  => Hash::make('cashier123'),
-                'role'      => User::ROLE_CASHIER,
-                'branch_id' => $xyz1?->id,
-                'access'    => [],
+                'fname' => 'NizPhone',
+                'lname' => 'Staff',
+                'username' => 'staff',
+                'password' => 'staff',
+                'role' => User::ROLE_CASHIER,
+                'branch_id' => $branch?->id,
+                'access' => $staffAccess,
+                'pos_layout' => 'grid',
             ],
         ];
 
         foreach ($users as $data) {
-            User::firstOrCreate(['username' => $data['username']], $data);
+            $plainPassword = $data['password'];
+            $data['password'] = Hash::make($plainPassword);
+
+            User::updateOrCreate(['username' => $data['username']], $data);
         }
 
-        $this->command->info('✓ Users seeded (' . count($users) . ')');
+        User::where('role', User::ROLE_SUPER_ADMIN)->update([
+            'branch_id' => null,
+            'access' => [],
+        ]);
+
+        User::where('role', User::ROLE_ADMINISTRATOR)->get()->each(function (User $user) use ($branch, $fullAccess) {
+            $user->forceFill([
+                'branch_id' => $user->branch_id ?? $branch?->id,
+                'access' => $fullAccess,
+            ])->save();
+        });
+
+        User::where('role', User::ROLE_MANAGER)->get()->each(function (User $user) use ($branch, $managerAccess) {
+            $user->forceFill([
+                'branch_id' => $user->branch_id ?? $branch?->id,
+                'access' => $managerAccess,
+            ])->save();
+        });
+
+        User::where('role', User::ROLE_CASHIER)->get()->each(function (User $user) use ($branch, $cashierAccess, $staffAccess) {
+            $access = in_array(strtolower($user->username), ['staff', 'inventory.staff'], true)
+                ? $staffAccess
+                : $cashierAccess;
+
+            $user->forceFill([
+                'branch_id' => $user->branch_id ?? $branch?->id,
+                'access' => $access,
+            ])->save();
+        });
+
+        $this->command->info('✓ NizPhone users seeded and existing users repaired with role-based access');
     }
 }

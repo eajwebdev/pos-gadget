@@ -10,6 +10,7 @@ export interface Variant {
 
 export interface BundleItem { name: string; qty: number; required: boolean; }
 export interface RecipeItem  { name: string; quantity: number; unit: string; }
+export interface SerializedUnit { id: number; imei: string | null; imei_2: string | null; serial_number: string | null; identifier: string; warranty_months: number; }
 
 export interface Product {
     id: number;
@@ -27,6 +28,8 @@ export interface Product {
     has_variants: boolean;
     bundle_items: BundleItem[] | null;
     recipe_items: RecipeItem[] | null;
+    track_serials?: boolean;
+    serialized_units?: SerializedUnit[];
 }
 
 export interface Category { id: number; name: string; }
@@ -43,6 +46,8 @@ export interface CartItem {
     product_type: string;
     bundle_items: BundleItem[] | null;
     recipe_items: RecipeItem[] | null;
+    device_unit_id?: number | null;
+    device_identifier?: string | null;
 }
 
 export interface TableOrder {

@@ -11,11 +11,10 @@ return new class extends Migration
      * All operational data (stock, sales, cash, expenses, etc.)
      * is scoped to a branch — NOT directly to a supplier.
      *
-     * business_type controls which features are active on the POS:
-     *   retail     → variants, expiry tracking, bundles
-     *   cafe       → variants, recipe system (made_to_order drinks)
-     *   restaurant → recipe system, table ordering
-     *   mixed      → all features enabled
+     * business_type identifies which branch operation belongs to the location:
+     *   store, service_center
+     *
+     * Stockrooms and warehouses are managed by the Warehouses module.
      *
      * Feature flags are auto-applied when business_type is set,
      * but can be overridden individually per branch.
@@ -33,7 +32,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
 
             // Business type and feature flags
-            $table->string('business_type', 30)->default('retail'); // retail|cafe|restaurant|mixed
+            $table->string('business_type', 30)->default('store');
             $table->boolean('use_table_ordering')->default(false);
             $table->boolean('use_variants')->default(false);
             $table->boolean('use_expiry_tracking')->default(false);

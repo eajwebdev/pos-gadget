@@ -17,7 +17,6 @@ class Sale extends Model
         'user_id',
         'branch_id',
         'cash_session_id',
-        'table_order_id',   // null for walk-up / takeout, set for dine-in
         'customer_id',
         'total',
         'payment_method',
@@ -59,7 +58,6 @@ class Sale extends Model
     public function user(): BelongsTo             { return $this->belongsTo(User::class); }
     public function branch(): BelongsTo           { return $this->belongsTo(Branch::class); }
     public function cashSession(): BelongsTo      { return $this->belongsTo(CashSession::class); }
-    public function tableOrder(): BelongsTo       { return $this->belongsTo(TableOrder::class); }
     public function customer(): BelongsTo         { return $this->belongsTo(Customer::class); }
     public function items(): HasMany              { return $this->hasMany(SaleItem::class); }
     public function installmentPlan(): HasOne     { return $this->hasOne(InstallmentPlan::class); }
@@ -69,8 +67,8 @@ class Sale extends Model
 
     public function isCompleted(): bool { return $this->status === 'completed'; }
     public function isVoided(): bool    { return $this->status === 'voided'; }
-    public function isDineIn(): bool    { return $this->table_order_id !== null; }
-    public function isTakeout(): bool   { return $this->table_order_id === null; }
+    public function isDineIn(): bool    { return false; }
+    public function isTakeout(): bool   { return true; }
     public function hasCreditBalance(): bool { return (float) $this->balance_due > 0; }
 
     public function refreshPaymentStatus(): void
@@ -99,7 +97,7 @@ class Sale extends Model
 
     public function getOrderTypeAttribute(): string
     {
-        return $this->isDineIn() ? 'Dine-in' : 'Takeout';
+        return 'Retail';
     }
 
     // ── Scopes ─────────────────────────────────────────────────────
@@ -108,8 +106,6 @@ class Sale extends Model
     public function scopeVoided($query)             { return $query->where('status', 'voided'); }
     public function scopeForBranch($query, int $id) { return $query->where('branch_id', $id); }
     public function scopeForSession($query, int $id){ return $query->where('cash_session_id', $id); }
-    public function scopeDineIn($query)             { return $query->whereNotNull('table_order_id'); }
-    public function scopeTakeout($query)            { return $query->whereNull('table_order_id'); }
 
     public function scopeForDate($query, $date)
     {

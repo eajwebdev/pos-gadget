@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef } from "react";
 import { usePage } from "@inertiajs/react";
 import { Printer, Download } from "lucide-react";
-import { fmtDate } from "@/lib/date";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { fmtDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -14,6 +14,8 @@ export interface ReceiptSaleItem {
     quantity: number;
     price: number;
     total?: number;
+    device_identifier?: string | null;
+    warranty_expires_at?: string | null;
 }
 
 export interface ReceiptData {
@@ -47,6 +49,7 @@ interface Props {
     compact?: boolean;
     className?: string;
 }
+interface ReceiptSettings { receipt_footer?: string; receipt_header?: string; show_cashier_on_receipt?: boolean; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 export const fmtMoney = (n: number, symbol = "₱") =>
@@ -77,7 +80,7 @@ const businessFooter: Record<string, string> = {
 // ─── ReceiptTemplate ─────────────────────────────────────────────────────────
 export default function ReceiptTemplate({ sale, currency = "₱", showActions = true, compact = false, className }: Props) {
     const printRef = useRef<HTMLDivElement>(null);
-    const settings = (usePage().props as any).settings ?? {};
+    const settings = (usePage().props as unknown as { settings?: ReceiptSettings }).settings ?? {};
 
     const subtotal = sale.items.reduce((s, i) => s + i.price * i.quantity, 0);
     const isVoided = sale.status === "voided";
@@ -152,6 +155,8 @@ export default function ReceiptTemplate({ sale, currency = "₱", showActions = 
         lines.push("--------------------------------");
         sale.items.forEach(i => {
             lines.push(`${i.product_name}${i.variant_name ? ` (${i.variant_name})` : ""}`);
+            if (i.device_identifier) lines.push(`  IMEI/SN: ${i.device_identifier}`);
+            if (i.warranty_expires_at) lines.push(`  Warranty until: ${i.warranty_expires_at}`);
             lines.push(pad(`  ${i.quantity} x ${fmtMoney(i.price, currency)}`, fmtMoney(i.price * i.quantity, currency)));
         });
         lines.push("--------------------------------");
@@ -245,6 +250,8 @@ export default function ReceiptTemplate({ sale, currency = "₱", showActions = 
                                 {item.variant_name && (
                                     <span className="text-muted-foreground font-normal"> ({item.variant_name})</span>
                                 )}
+                                {item.device_identifier && <span className="block font-mono text-[10px] font-normal">IMEI/SN: {item.device_identifier}</span>}
+                                {item.warranty_expires_at && <span className="block text-[10px] font-normal">Warranty until: {item.warranty_expires_at}</span>}
                             </p>
                             <div className="item-detail flex justify-between text-[11px] pl-2">
                                 <span className="text-muted-foreground">

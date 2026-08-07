@@ -11,30 +11,29 @@ class CategorySeeder extends Seeder
     public function run(): void
     {
         $categories = [
-            ['name' => 'Food',            'description' => 'Ready-to-eat food items'],
-            ['name' => 'Beverages',       'description' => 'Drinks, juices, coffee, tea'],
-            ['name' => 'Snacks',          'description' => 'Chips, biscuits, candies'],
-            ['name' => 'Groceries',       'description' => 'Rice, canned goods, condiments'],
-            ['name' => 'Personal Care',   'description' => 'Hygiene and grooming products'],
-            ['name' => 'School Supplies', 'description' => 'Notebooks, pens, paper'],
-            ['name' => 'Raw Materials',   'description' => 'Ingredients for cooking or production'],
-            ['name' => 'Merchandise',     'description' => 'Clothing, accessories, souvenirs'],
-            ['name' => 'Electronics',     'description' => 'Gadgets, components, accessories'],
-            ['name' => 'Others',          'description' => 'Miscellaneous items'],
+            ['name' => 'iPhones', 'description' => 'Apple iPhone units with IMEI / serial tracking'],
+            ['name' => 'Android Phones', 'description' => 'Samsung, OPPO, vivo, Xiaomi, realme, Huawei and other Android phones'],
+            ['name' => 'Laptops', 'description' => 'MacBook, Windows laptops, gaming laptops and ultrabooks'],
+            ['name' => 'Tablets', 'description' => 'iPad and Android tablets'],
+            ['name' => 'Smart Watches', 'description' => 'Apple Watch, Galaxy Watch and wearable devices'],
+            ['name' => 'Audio', 'description' => 'AirPods, earbuds, headphones and speakers'],
+            ['name' => 'Chargers & Cables', 'description' => 'Adapters, power banks, USB-C, Lightning and charging accessories'],
+            ['name' => 'Cases & Protection', 'description' => 'Phone cases, laptop sleeves, screen protectors and tempered glass'],
+            ['name' => 'Repair Parts', 'description' => 'Replacement screens, batteries, cameras and service parts'],
+            ['name' => 'Repair Services', 'description' => 'Labor and after-sales service items'],
         ];
 
-        foreach ($categories as $cat) {
-            Category::firstOrCreate(
-                ['name' => $cat['name']],
+        foreach ($categories as $category) {
+            Category::updateOrCreate(
+                ['name' => $category['name']],
                 [
-                    'name'        => $cat['name'],
-                    'slug'        => Str::slug($cat['name']),
-                    'description' => $cat['description'],
-                    'is_active'   => true,
+                    'slug' => Str::slug($category['name']),
+                    'description' => $category['description'],
+                    'is_active' => true,
                 ]
             );
         }
 
-        $this->command->info('✓ Categories seeded (' . count($categories) . ')');
+        $this->command->info('✓ Gadget categories seeded ('.count($categories).')');
     }
 }

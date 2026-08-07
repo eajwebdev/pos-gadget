@@ -6,15 +6,14 @@ use App\Models\CashSession;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
-use App\Models\DiningTable;
+use App\Models\DeviceUnit;
+use App\Models\InstallmentPayment;
+use App\Models\InstallmentPlan;
 use App\Models\Product;
-use App\Models\ProductBundle;
-use App\Models\RecipeIngredient;
-use App\Models\ProductStock;
 use App\Models\Promo;
 use App\Models\Sale;
 use App\Models\SystemSetting;
-use App\Models\TableOrder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,18 +27,24 @@ class PosController extends Controller
     private function authorizeSale(Sale $sale): void
     {
         $user = Auth::user();
-        if ($user->isSuperAdmin() || $user->isAdministrator()) return;
-        if ($sale->branch_id !== $user->branch_id) abort(403, 'Unauthorized access to this sale.');
+        if ($user->isSuperAdmin() || $user->isAdministrator()) {
+            return;
+        }
+        if ($sale->branch_id !== $user->branch_id) {
+            abort(403, 'Unauthorized access to this sale.');
+        }
     }
 
     // ─── POS Screen ───────────────────────────────────────────────────────────
 
     public function index(): Response
     {
-        $user     = Auth::user();
+        $user = Auth::user();
         $branchId = $user->branch_id;
 
-        if (! $branchId && ! $user->isSuperAdmin()) abort(403, 'No branch assigned.');
+        if (! $branchId && ! $user->isSuperAdmin()) {
+            abort(403, 'No branch assigned.');
+        }
 
         $session = CashSession::where('branch_id', $branchId)
             ->where('user_id', $user->id)
@@ -61,11 +66,11 @@ class PosController extends Controller
             ->with([
                 'category:id,name',
                 // Load stock without the >0 filter so we always get the price/capital row
-                'stocks'                               => fn ($q) => $q->where('branch_id', $branchId),
-                'variants'                             => fn ($q) => $q->where('is_available', true)->orderBy('sort_order'),
+                'stocks' => fn ($q) => $q->where('branch_id', $branchId),
+                'variants' => fn ($q) => $q->where('is_available', true)->orderBy('sort_order'),
                 'bundle.items.componentProduct:id,name',
                 'bundle.items.componentVariant:id,name',
-                'recipeIngredients.ingredient:id,name',
+                'deviceUnits' => fn ($q) => $q->where('branch_id', $branchId)->where('status', 'available')->orderBy('imei')->orderBy('serial_number'),
             ])
             ->where(fn ($q) => $q
                 // Standard products: own stock > 0 in this branch
@@ -87,7 +92,6 @@ class PosController extends Controller
                 // Bundle products: always show — stock deducted from components at sale time
                 ->orWhere('product_type', 'bundle')
                 // Made-to-order: always show — ingredients deducted from recipe at sale time
-                ->orWhere('product_type', 'made_to_order')
                 // Services: always show — no physical stock, price row required
                 ->orWhere(fn ($inner) => $inner
                     ->where('product_type', 'service')
@@ -112,69 +116,45 @@ class PosController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'contact_number', 'email'])
             ->map(fn (Customer $customer) => [
-                'id'             => $customer->id,
-                'name'           => $customer->name,
+                'id' => $customer->id,
+                'name' => $customer->name,
                 'contact_number' => $customer->contact_number,
-                'email'          => $customer->email,
+                'email' => $customer->email,
                 'credit_balance' => $customer->credit_balance,
             ]);
 
         $promos = Promo::tableExists()
             ? Promo::with(['products:id', 'categories:id'])->active()->get()
                 ->map(fn (Promo $p) => [
-                    'id'               => $p->id,
-                    'name'             => $p->name,
-                    'code'             => $p->code,
-                    'discount_type'    => $p->discount_type,
-                    'discount_value'   => (float) $p->discount_value,
-                    'applies_to'       => $p->applies_to,
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'code' => $p->code,
+                    'discount_type' => $p->discount_type,
+                    'discount_value' => (float) $p->discount_value,
+                    'applies_to' => $p->applies_to,
                     'minimum_purchase' => $p->minimum_purchase ? (float) $p->minimum_purchase : null,
-                    'product_ids'      => $p->products->pluck('id')->values(),
-                    'category_ids'     => $p->categories->pluck('id')->values(),
-                    'expires_at'       => $p->expires_at?->toIso8601String(),
+                    'product_ids' => $p->products->pluck('id')->values(),
+                    'category_ids' => $p->categories->pluck('id')->values(),
+                    'expires_at' => $p->expires_at?->toIso8601String(),
                 ])->values()
             : collect();
 
-        $openTableOrders = [];
-        $diningTables    = [];
-
-        if ($user->branch?->usesTableOrdering()) {
-            $openTableOrders = TableOrder::with('table:id,table_number,section')
-                ->where('branch_id', $branchId)->whereIn('status', ['open', 'billed'])->get()
-                ->map(fn ($to) => [
-                    'id' => $to->id, 'table_id' => $to->table_id,
-                    'table_number' => $to->table?->table_number,
-                    'section' => $to->table?->section,
-                    'label' => $to->table?->label ?? "Table {$to->table?->table_number}",
-                    'status' => $to->status, 'total' => (float) $to->total,
-                    'customer_name' => $to->customer_name,
-                ])->values();
-
-            $diningTables = DiningTable::where('branch_id', $branchId)->where('is_active', true)
-                ->orderBy('section')->orderBy('table_number')
-                ->get(['id', 'table_number', 'section', 'capacity', 'status'])
-                ->map(fn ($t) => [
-                    'id' => $t->id, 'table_number' => $t->table_number, 'section' => $t->section,
-                    'label' => $t->label ?? "Table {$t->table_number}", 'capacity' => $t->capacity, 'status' => $t->status,
-                ])->values();
-        }
-
         return Inertia::render('Pos/Index', [
-            'products'          => $products,
-            'categories'        => $categories,
-            'customers'         => $customers,
-            'promos'            => $promos,
-            'session'           => $session ? [
+            'products' => $products,
+            'categories' => $categories,
+            'customers' => $customers,
+            'promos' => $promos,
+            'session' => $session ? [
                 'id' => $session->id, 'opening_cash' => (float) $session->opening_cash,
                 'opened_at' => $session->opened_at?->toIso8601String(), 'status' => $session->status,
             ] : null,
-            'branch'            => $user->branch ? [
+            'branch' => $user->branch ? [
                 'id' => $user->branch->id, 'name' => $user->branch->name,
                 'business_type' => $user->branch->business_type, 'feature_flags' => $user->branch->feature_flags,
             ] : null,
-            'open_table_orders' => $openTableOrders,
-            'dining_tables'     => $diningTables,
-            'preferred_layout'  => $user->pos_layout ?? 'grid',
+            'open_table_orders' => [],
+            'dining_tables' => [],
+            'preferred_layout' => $user->pos_layout ?? 'grid',
         ]);
     }
 
@@ -187,72 +167,65 @@ class PosController extends Controller
     private function deductProductStock(Product $product, int $qty, int $branchId, bool $allowNeg): void
     {
         // Services have no physical inventory — nothing to deduct
-        if ($product->product_type === 'service') return;
+        if ($product->product_type === 'service') {
+            return;
+        }
 
         if ($product->product_type === 'bundle' && $product->bundle) {
             foreach ($product->bundle->items->where('is_required', true) as $bi) {
-                $comp   = $bi->componentProduct;
-                $cs     = $comp?->stocks->firstWhere('branch_id', $branchId);
+                $comp = $bi->componentProduct;
+                $cs = $comp?->stocks->firstWhere('branch_id', $branchId);
                 $needed = $bi->quantity * $qty;
-                if (! $cs) throw new \RuntimeException("Bundle component \"{$comp?->name}\" has no stock in this branch.");
-                if (! $allowNeg && $cs->stock < $needed) throw new \RuntimeException("Insufficient stock for bundle component \"{$comp?->name}\". Need {$needed}, have {$cs->stock}.");
-                $cs->decrement('stock', $needed);
-            }
-        } elseif ($product->product_type === 'made_to_order') {
-            $recipes = $product->recipeIngredients;
-            if ($recipes->isNotEmpty()) {
-                foreach ($recipes as $recipe) {
-                    $ing      = $recipe->ingredient;
-                    $ingStock = $ing?->stocks->firstWhere('branch_id', $branchId);
-                    $needed   = $recipe->quantityNeededFor($qty);
-                    if (! $ingStock) throw new \RuntimeException("Ingredient \"{$ing?->name}\" has no stock in this branch.");
-                    if (! $allowNeg && $ingStock->stock < $needed) throw new \RuntimeException("Insufficient stock for ingredient \"{$ing?->name}\". Need {$needed}, have {$ingStock->stock}.");
-                    $ingStock->decrement('stock', $needed);
+                if (! $cs) {
+                    throw new \RuntimeException("Bundle component \"{$comp?->name}\" has no stock in this branch.");
                 }
-            } else {
-                $stock = $product->stocks->firstWhere('branch_id', $branchId) ?? $product->stocks->first();
-                if (! $stock) throw new \RuntimeException("Product \"{$product->name}\" has no stock in this branch.");
-                if (! $allowNeg && $stock->stock < $qty) throw new \RuntimeException("Insufficient stock for \"{$product->name}\". Only {$stock->stock} left.");
-                $stock->decrement('stock', $qty);
+                if (! $allowNeg && $cs->stock < $needed) {
+                    throw new \RuntimeException("Insufficient stock for bundle component \"{$comp?->name}\". Need {$needed}, have {$cs->stock}.");
+                }
+                $cs->decrement('stock', $needed);
             }
         } else {
             $stock = $product->stocks->firstWhere('branch_id', $branchId) ?? $product->stocks->first();
-            if (! $stock) throw new \RuntimeException("Product \"{$product->name}\" has no stock in this branch.");
-            if (! $allowNeg && $stock->stock < $qty) throw new \RuntimeException("Insufficient stock for \"{$product->name}\". Only {$stock->stock} left.");
+            if (! $stock) {
+                throw new \RuntimeException("Product \"{$product->name}\" has no stock in this branch.");
+            }
+            if (! $allowNeg && $stock->stock < $qty) {
+                throw new \RuntimeException("Insufficient stock for \"{$product->name}\". Only {$stock->stock} left.");
+            }
             $stock->decrement('stock', $qty);
         }
     }
 
     /**
      * Restore stock for a set of sale items — mirrors deductProductStock.
-     * Items must be loaded with: product.stocks, product.bundle.items.componentProduct.stocks,
-     * product.recipeIngredients.ingredient.stocks
+     * Items must be loaded with: product.stocks, product.bundle.items.componentProduct.stocks
      */
-    private function restoreStockForItems(\Illuminate\Database\Eloquent\Collection $items, int $branchId): void
+    private function restoreStockForItems(Collection $items, int $branchId): void
     {
         foreach ($items as $item) {
             $product = $item->product;
-            if (! $product) continue;
+            if (! $product) {
+                continue;
+            }
 
             if ($product->product_type === 'bundle' && $product->bundle) {
                 foreach ($product->bundle->items->where('is_required', true) as $bi) {
                     $cs = $bi->componentProduct?->stocks->firstWhere('branch_id', $branchId);
-                    if ($cs) $cs->increment('stock', $bi->quantity * $item->quantity);
-                }
-            } elseif ($product->product_type === 'made_to_order') {
-                $recipes = $product->recipeIngredients;
-                if ($recipes->isNotEmpty()) {
-                    foreach ($recipes as $recipe) {
-                        $ingStock = $recipe->ingredient?->stocks->firstWhere('branch_id', $branchId);
-                        if ($ingStock) $ingStock->increment('stock', $recipe->quantityNeededFor($item->quantity));
+                    if ($cs) {
+                        $cs->increment('stock', $bi->quantity * $item->quantity);
                     }
-                } else {
-                    $stock = $product->stocks->firstWhere('branch_id', $branchId);
-                    if ($stock) $stock->increment('stock', $item->quantity);
                 }
             } else {
                 $stock = $product->stocks->firstWhere('branch_id', $branchId);
-                if ($stock) $stock->increment('stock', $item->quantity);
+                if ($stock) {
+                    $stock->increment('stock', $item->quantity);
+                }
+            }
+
+            if ($item->deviceUnit) {
+                $item->deviceUnit->update([
+                    'status' => 'available', 'sale_item_id' => null, 'sold_at' => null, 'warranty_expires_at' => null,
+                ]);
             }
         }
     }
@@ -261,14 +234,16 @@ class PosController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $user     = Auth::user();
+        $user = Auth::user();
         $branchId = $user->branch_id;
 
-        if (! $branchId) return back()->withErrors(['error' => 'No branch assigned.']);
+        if (! $branchId) {
+            return back()->withErrors(['error' => 'No branch assigned.']);
+        }
 
         // Enforce cash session requirement — tied to the cashier's own session
         $requireSession = (bool) SystemSetting::get('pos.require_cash_session', $branchId, true);
-        $openSession = \App\Models\CashSession::where('branch_id', $branchId)
+        $openSession = CashSession::where('branch_id', $branchId)
             ->where('user_id', $user->id)
             ->open()
             ->first();
@@ -277,27 +252,27 @@ class PosController extends Controller
         }
 
         $validated = $request->validate([
-            'items'              => ['required', 'array', 'min:1'],
-            'items.*.id'         => ['required', 'exists:products,id'],
-            'items.*.qty'        => ['required', 'integer', 'min:1'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'exists:products,id'],
+            'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
-            'payment_method'     => ['required', 'in:cash,gcash,card,others,installment,credit,mixed'],
-            'payment_amount'     => ['nullable', 'numeric', 'min:0'],
-            'customer_id'        => ['nullable', 'exists:customers,id'],
-            'customer_name'      => ['nullable', 'string', 'max:80'],
-            'due_date'           => ['nullable', 'date'],
-            'credit_notes'       => ['nullable', 'string', 'max:500'],
-            'discount_percent'   => ['nullable', 'numeric', 'between:0,100'],
-            'promo_id'           => ['nullable', 'exists:promos,id'],
-            'cash_session_id'    => ['nullable', 'exists:cash_sessions,id'],
-            'table_order_id'     => ['nullable', 'exists:table_orders,id'],
+            'items.*.device_unit_id' => ['nullable', 'integer', 'distinct', 'exists:device_units,id'],
+            'payment_method' => ['required', 'in:cash,gcash,card,others,installment,credit,mixed'],
+            'payment_amount' => ['nullable', 'numeric', 'min:0'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_name' => ['nullable', 'string', 'max:80'],
+            'due_date' => ['nullable', 'date'],
+            'credit_notes' => ['nullable', 'string', 'max:500'],
+            'discount_percent' => ['nullable', 'numeric', 'between:0,100'],
+            'promo_id' => ['nullable', 'exists:promos,id'],
+            'cash_session_id' => ['nullable', 'exists:cash_sessions,id'],
             // Financing / installment fields (used when payment_method = installment)
-            'installment_provider'        => ['nullable', 'in:home_credit,skyro,other'],
-            'installment_reference'       => ['nullable', 'string', 'max:100'],
-            'installment_customer_phone'  => ['nullable', 'string', 'max:30'],
-            'installment_down_payment'    => ['nullable', 'numeric', 'min:0'],
-            'installments_count'          => ['nullable', 'integer', 'between:1,36'],
-            'installment_notes'           => ['nullable', 'string', 'max:500'],
+            'installment_provider' => ['nullable', 'in:home_credit,skyro,other'],
+            'installment_reference' => ['nullable', 'string', 'max:100'],
+            'installment_customer_phone' => ['nullable', 'string', 'max:30'],
+            'installment_down_payment' => ['nullable', 'numeric', 'min:0'],
+            'installments_count' => ['nullable', 'integer', 'between:1,36'],
+            'installment_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         // Extra validation for installment/financing payment
@@ -317,17 +292,16 @@ class PosController extends Controller
         try {
             $result = DB::transaction(function () use ($validated, $user, $branchId) {
                 $allowNeg = SystemSetting::allowNegativeStock($branchId);
-                $subtotal         = 0;
-                $taxableSubtotal  = 0;
-                $saleItems        = [];
-                $itemMode         = SystemSetting::posItemMode($branchId);
+                $subtotal = 0;
+                $taxableSubtotal = 0;
+                $saleItems = [];
+                $itemMode = SystemSetting::posItemMode($branchId);
 
                 foreach ($validated['items'] as $item) {
                     $product = Product::with([
                         'variants',
-                        'stocks'                                => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
-                        'bundle.items.componentProduct.stocks'  => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
-                        'recipeIngredients.ingredient.stocks'   => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
+                        'stocks' => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
+                        'bundle.items.componentProduct.stocks' => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
                     ])->findOrFail($item['id']);
 
                     if ($itemMode === 'services_only' && $product->product_type !== 'service') {
@@ -338,46 +312,62 @@ class PosController extends Controller
                         throw new \RuntimeException('This POS is set to Products only. Service items are not allowed.');
                     }
 
-                    $stock     = $product->stocks->first();
+                    $stock = $product->stocks->first();
                     $unitPrice = (float) ($stock?->price ?? 0);
-                    $saleQty   = (int) $item['qty'];
+                    $saleQty = (int) $item['qty'];
+
+                    $deviceUnit = null;
+                    if ($product->track_serials) {
+                        if ($saleQty !== 1 || empty($item['device_unit_id'])) {
+                            throw new \RuntimeException("Select the exact IMEI / serial number for {$product->name}.");
+                        }
+                        $deviceUnit = DeviceUnit::whereKey($item['device_unit_id'])->lockForUpdate()->first();
+                        if (! $deviceUnit || $deviceUnit->product_id !== $product->id || $deviceUnit->branch_id !== $branchId || $deviceUnit->status !== 'available') {
+                            throw new \RuntimeException("The selected unit for {$product->name} is no longer available.");
+                        }
+                    } elseif (! empty($item['device_unit_id'])) {
+                        throw new \RuntimeException("Invalid serialized unit selected for {$product->name}.");
+                    }
 
                     // ── Resolve variant price add-on ───────────────────────
                     if (! empty($item['variant_id'])) {
                         $v = $product->variants->firstWhere('id', $item['variant_id']);
-                        if ($v) $unitPrice += (float) $v->extra_price;
+                        if ($v) {
+                            $unitPrice += (float) $v->extra_price;
+                        }
                     }
 
                     // ── Deduct stock based on product type ─────────────────
                     $this->deductProductStock($product, $saleQty, $branchId, $allowNeg);
 
-                    $line      = round($unitPrice * $saleQty, 2);
+                    $line = round($unitPrice * $saleQty, 2);
                     $subtotal += $line;
                     if ($product->is_taxable) {
                         $taxableSubtotal += $line;
                     }
                     $saleItems[] = [
-                        'product_id'         => $item['id'],
+                        'product_id' => $item['id'],
                         'product_variant_id' => $item['variant_id'] ?? null,
-                        'quantity'           => $saleQty,
-                        'price'              => $unitPrice,
-                        'total'              => $line,
+                        'quantity' => $saleQty,
+                        'price' => $unitPrice,
+                        'total' => $line,
+                        '_device_unit' => $deviceUnit,
                     ];
                 }
 
                 // Percentage discount
-                $maxDisc  = (float) SystemSetting::get('pos.max_discount_percent', $branchId, 100);
-                $discPct  = min((float) ($validated['discount_percent'] ?? 0), $maxDisc);
-                $discAmt  = round($subtotal * ($discPct / 100), 2);
+                $maxDisc = (float) SystemSetting::get('pos.max_discount_percent', $branchId, 100);
+                $discPct = min((float) ($validated['discount_percent'] ?? 0), $maxDisc);
+                $discAmt = round($subtotal * ($discPct / 100), 2);
 
                 // Promo discount
-                $promoAmt   = 0;
+                $promoAmt = 0;
                 $promoLabel = null;
                 if (! empty($validated['promo_id'])) {
                     $promo = Promo::find($validated['promo_id']);
                     if ($promo && $promo->isValid()) {
-                        $promoAmt   = $promo->computeDiscount($subtotal - $discAmt);
-                        $promoLabel = "{$promo->name}" . ($promo->code ? " [{$promo->code}]" : '');
+                        $promoAmt = $promo->computeDiscount($subtotal - $discAmt);
+                        $promoLabel = "{$promo->name}".($promo->code ? " [{$promo->code}]" : '');
                         $promo->increment('uses_count');
                     }
                 }
@@ -385,32 +375,32 @@ class PosController extends Controller
                 $afterDisc = round($subtotal - $discAmt - $promoAmt, 2);
 
                 // VAT — only applied to taxable items' portion of the total
-                $vatEnabled   = SystemSetting::vatEnabled($branchId);
-                $vatRate      = (float) SystemSetting::get('tax.vat_rate',       $branchId, 0);
-                $vatInclusive = (bool)  SystemSetting::get('tax.vat_inclusive',  $branchId, true);
+                $vatEnabled = SystemSetting::vatEnabled($branchId);
+                $vatRate = (float) SystemSetting::get('tax.vat_rate', $branchId, 0);
+                $vatInclusive = (bool) SystemSetting::get('tax.vat_inclusive', $branchId, true);
                 // Compute how much of the post-discount total is taxable (proportional)
-                $taxableFraction     = $subtotal > 0 ? ($taxableSubtotal / $subtotal) : 0;
-                $taxableAfterDisc    = round($afterDisc * $taxableFraction, 2);
-                $vatAmt              = ($vatEnabled && $vatRate > 0 && ! $vatInclusive)
+                $taxableFraction = $subtotal > 0 ? ($taxableSubtotal / $subtotal) : 0;
+                $taxableAfterDisc = round($afterDisc * $taxableFraction, 2);
+                $vatAmt = ($vatEnabled && $vatRate > 0 && ! $vatInclusive)
                     ? round($taxableAfterDisc * ($vatRate / 100), 2) : 0;
                 $serviceChargeEnabled = (bool) SystemSetting::get('tax.enable_service_charge', $branchId, false);
-                $serviceChargeRate    = (float) SystemSetting::get('tax.service_charge_rate', $branchId, 0);
-                $serviceChargeAmt     = $serviceChargeEnabled && $serviceChargeRate > 0
+                $serviceChargeRate = (float) SystemSetting::get('tax.service_charge_rate', $branchId, 0);
+                $serviceChargeAmt = $serviceChargeEnabled && $serviceChargeRate > 0
                     ? round($afterDisc * ($serviceChargeRate / 100), 2)
                     : 0;
 
-                $totalDue      = round($afterDisc + $vatAmt + $serviceChargeAmt, 2);
-                $method        = $validated['payment_method'];
+                $totalDue = round($afterDisc + $vatAmt + $serviceChargeAmt, 2);
+                $method = $validated['payment_method'];
                 $isInstallment = $method === 'installment';
-                $isCredit      = in_array($method, ['credit', 'mixed'], true);
-                $downPayment   = $isInstallment ? (float) ($validated['installment_down_payment'] ?? 0) : null;
-                $tendered      = $isInstallment ? ($downPayment ?? 0) : (float) ($validated['payment_amount'] ?? $totalDue);
-                $amountPaid    = $isCredit || $isInstallment
+                $isCredit = in_array($method, ['credit', 'mixed'], true);
+                $downPayment = $isInstallment ? (float) ($validated['installment_down_payment'] ?? 0) : null;
+                $tendered = $isInstallment ? ($downPayment ?? 0) : (float) ($validated['payment_amount'] ?? $totalDue);
+                $amountPaid = $isCredit || $isInstallment
                     ? min(max(0, $tendered), $totalDue)
                     : $totalDue;
-                $balanceDue    = max(0, round($totalDue - $amountPaid, 2));
+                $balanceDue = max(0, round($totalDue - $amountPaid, 2));
                 $paymentStatus = $balanceDue <= 0 ? 'paid' : ($amountPaid > 0 ? 'partial' : 'unpaid');
-                $change        = ($isInstallment || $isCredit) ? 0 : max(0, round($tendered - $totalDue, 2));
+                $change = ($isInstallment || $isCredit) ? 0 : max(0, round($tendered - $totalDue, 2));
 
                 $customer = ! empty($validated['customer_id'])
                     ? Customer::where('id', $validated['customer_id'])
@@ -419,103 +409,108 @@ class PosController extends Controller
                     : null;
 
                 $notes = implode(' | ', array_filter([
-                    $discPct > 0   ? "Discount {$discPct}% (−₱" . number_format($discAmt, 2) . ")"        : null,
-                    $promoAmt > 0  ? "Promo {$promoLabel}: −₱" . number_format($promoAmt, 2)              : null,
-                    $vatAmt > 0    ? "VAT {$vatRate}%: ₱" . number_format($vatAmt, 2)                     : null,
+                    $discPct > 0 ? "Discount {$discPct}% (−₱".number_format($discAmt, 2).')' : null,
+                    $promoAmt > 0 ? "Promo {$promoLabel}: −₱".number_format($promoAmt, 2) : null,
+                    $vatAmt > 0 ? "VAT {$vatRate}%: ₱".number_format($vatAmt, 2) : null,
                 ]));
 
                 $sale = Sale::create([
-                    'receipt_number'  => $this->generateReceiptNumber($branchId),
-                    'user_id'         => $user->id,
-                    'branch_id'       => $branchId,
+                    'receipt_number' => $this->generateReceiptNumber($branchId),
+                    'user_id' => $user->id,
+                    'branch_id' => $branchId,
                     'cash_session_id' => $openSession?->id ?? $validated['cash_session_id'] ?? null,
-                    'table_order_id'  => $validated['table_order_id']  ?? null,
-                    'customer_id'     => $customer?->id,
-                    'payment_method'  => $method,
-                    'payment_amount'  => $tendered,
-                    'amount_paid'     => $amountPaid,
-                    'balance_due'     => $balanceDue,
-                    'payment_status'  => $paymentStatus,
-                    'due_date'        => $validated['due_date'] ?? null,
-                    'change_amount'   => $change,
+                    'customer_id' => $customer?->id,
+                    'payment_method' => $method,
+                    'payment_amount' => $tendered,
+                    'amount_paid' => $amountPaid,
+                    'balance_due' => $balanceDue,
+                    'payment_status' => $paymentStatus,
+                    'due_date' => $validated['due_date'] ?? null,
+                    'change_amount' => $change,
                     'discount_amount' => $discAmt + $promoAmt,
-                    'customer_name'   => $customer?->name ?? ($validated['customer_name'] ?? null),
-                    'status'          => 'completed',
-                    'total'           => $totalDue,
-                    'credit_notes'    => $validated['credit_notes'] ?? null,
-                    'notes'           => $notes ?: null,
+                    'customer_name' => $customer?->name ?? ($validated['customer_name'] ?? null),
+                    'status' => 'completed',
+                    'total' => $totalDue,
+                    'credit_notes' => $validated['credit_notes'] ?? null,
+                    'notes' => $notes ?: null,
                 ]);
 
-                foreach ($saleItems as $data) $sale->items()->create($data);
+                foreach ($saleItems as $data) {
+                    $deviceUnit = $data['_device_unit'];
+                    unset($data['_device_unit']);
+                    $saleItem = $sale->items()->create($data);
+                    if ($deviceUnit) {
+                        $months = (int) ($deviceUnit->warranty_months ?? $saleItem->product?->warranty_months ?? 0);
+                        $deviceUnit->update([
+                            'sale_item_id' => $saleItem->id, 'status' => 'sold', 'sold_at' => now(),
+                            'warranty_expires_at' => $months > 0 ? today()->addMonthsNoOverflow($months) : null,
+                        ]);
+                    }
+                }
 
                 if ($customer && $amountPaid > 0 && $isCredit) {
                     CustomerPayment::create([
-                        'customer_id'    => $customer->id,
-                        'sale_id'        => $sale->id,
-                        'branch_id'      => $branchId,
-                        'received_by'    => $user->id,
-                        'amount'         => $amountPaid,
+                        'customer_id' => $customer->id,
+                        'sale_id' => $sale->id,
+                        'branch_id' => $branchId,
+                        'received_by' => $user->id,
+                        'amount' => $amountPaid,
                         'payment_method' => $method === 'mixed' ? 'cash' : ($validated['payment_method'] ?? 'cash'),
-                        'payment_date'   => today()->toDateString(),
-                        'notes'          => 'Initial payment at POS',
+                        'payment_date' => today()->toDateString(),
+                        'notes' => 'Initial payment at POS',
                     ]);
-                }
-
-                if (! empty($validated['table_order_id'])) {
-                    TableOrder::where('id', $validated['table_order_id'])
-                        ->update(['status' => 'closed', 'sale_id' => $sale->id]);
                 }
 
                 // ── Create financing record if payment method is installment ──
                 $installmentPlanId = null;
                 if ($isInstallment) {
                     $downPaymentAmt = max(0, (float) ($validated['installment_down_payment'] ?? 0));
-                    $balance        = round($totalDue - $downPaymentAmt, 2);
-                    $instCount      = max(1, (int) ($validated['installments_count'] ?? 3));
-                    $instAmount     = $instCount > 0 ? round($balance / $instCount, 2) : $balance;
+                    $balance = round($totalDue - $downPaymentAmt, 2);
+                    $instCount = max(1, (int) ($validated['installments_count'] ?? 3));
+                    $instAmount = $instCount > 0 ? round($balance / $instCount, 2) : $balance;
 
-                    $plan = \App\Models\InstallmentPlan::create([
-                        'sale_id'            => $sale->id,
-                        'branch_id'          => $branchId,
-                        'user_id'            => $user->id,
-                        'provider'           => $validated['installment_provider'] ?? 'other',
-                        'reference_number'   => $validated['installment_reference'] ?? null,
-                        'customer_name'      => $validated['customer_name'],
-                        'customer_phone'     => $validated['installment_customer_phone'] ?? null,
-                        'total_amount'       => $totalDue,
-                        'down_payment'       => $downPaymentAmt,
-                        'balance'            => $balance,
+                    $plan = InstallmentPlan::create([
+                        'sale_id' => $sale->id,
+                        'branch_id' => $branchId,
+                        'user_id' => $user->id,
+                        'provider' => $validated['installment_provider'] ?? 'other',
+                        'reference_number' => $validated['installment_reference'] ?? null,
+                        'customer_name' => $validated['customer_name'],
+                        'customer_phone' => $validated['installment_customer_phone'] ?? null,
+                        'total_amount' => $totalDue,
+                        'down_payment' => $downPaymentAmt,
+                        'balance' => $balance,
                         'installment_amount' => $instAmount,
-                        'total_paid'         => 0,
+                        'total_paid' => 0,
                         'installments_count' => $instCount,
-                        'paid_count'         => 0,
-                        'interval'           => 'monthly',
-                        'next_due_date'      => $balance > 0 ? now()->addMonth() : null,
-                        'status'             => $balance > 0 ? 'active' : 'completed',
-                        'notes'              => $validated['installment_notes'] ?? null,
+                        'paid_count' => 0,
+                        'interval' => 'monthly',
+                        'next_due_date' => $balance > 0 ? now()->addMonth() : null,
+                        'status' => $balance > 0 ? 'active' : 'completed',
+                        'notes' => $validated['installment_notes'] ?? null,
                     ]);
 
                     $installmentPlanId = $plan->id;
                 }
 
                 return [
-                    'sale_id'            => $sale->id,
-                    'receipt_number'     => $sale->receipt_number,
-                    'total'              => $totalDue,
-                    'change'             => $change,
-                    'amount_paid'        => $amountPaid,
-                    'balance_due'        => $balanceDue,
-                    'payment_status'     => $paymentStatus,
-                    'due_date'           => $sale->due_date?->toDateString(),
-                    'customer_name'       => $sale->customer?->name ?? $sale->customer_name,
-                    'discount_amount'    => $discAmt,
-                    'promo_discount'     => $promoAmt,
-                    'promo_name'         => $promoLabel,
-                    'vat_amount'         => $vatAmt,
+                    'sale_id' => $sale->id,
+                    'receipt_number' => $sale->receipt_number,
+                    'total' => $totalDue,
+                    'change' => $change,
+                    'amount_paid' => $amountPaid,
+                    'balance_due' => $balanceDue,
+                    'payment_status' => $paymentStatus,
+                    'due_date' => $sale->due_date?->toDateString(),
+                    'customer_name' => $sale->customer?->name ?? $sale->customer_name,
+                    'discount_amount' => $discAmt,
+                    'promo_discount' => $promoAmt,
+                    'promo_name' => $promoLabel,
+                    'vat_amount' => $vatAmt,
                     'service_charge_amount' => $serviceChargeAmt,
-                    'installment_plan_id'=> $installmentPlanId,
-                    'is_installment'     => $isInstallment,
-                    'down_payment'       => $isInstallment ? ($downPayment ?? 0) : null,
+                    'installment_plan_id' => $installmentPlanId,
+                    'is_installment' => $isInstallment,
+                    'down_payment' => $isInstallment ? ($downPayment ?? 0) : null,
                 ];
             });
 
@@ -531,7 +526,8 @@ class PosController extends Controller
     public function show(Sale $sale): Response
     {
         $this->authorizeSale($sale);
-        $sale->load(['items.product', 'items.variant', 'user', 'branch', 'cashSession', 'tableOrder.table', 'customer']);
+        $sale->load(['items.product', 'items.variant', 'items.deviceUnit', 'user', 'branch', 'cashSession', 'tableOrder.table', 'customer']);
+
         return Inertia::render('Pos/Show', ['sale' => $this->mapSale($sale)]);
     }
 
@@ -539,28 +535,34 @@ class PosController extends Controller
 
     public function history(Request $request): Response
     {
-        $user     = Auth::user();
+        $user = Auth::user();
         $branchId = $user->branch_id;
-        $isAdmin  = $user->isAdmin();
-        $today    = today()->toDateString();
+        $isAdmin = $user->isAdmin();
+        $today = today()->toDateString();
 
         // Cashiers are always locked to today; admins default to today on first visit
         $from = $isAdmin ? ($request->input('from') ?? $today) : $today;
-        $to   = $isAdmin ? ($request->input('to')   ?? $today) : $today;
+        $to = $isAdmin ? ($request->input('to') ?? $today) : $today;
 
         $search = $request->input('search');
         $status = $request->input('status');
         $method = $request->input('payment_method');
 
-        $query = Sale::with(['items.product', 'items.variant', 'user', 'tableOrder.table', 'customer'])
+        $query = Sale::with(['items.product', 'items.variant', 'items.deviceUnit', 'user', 'tableOrder.table', 'customer'])
             ->where('branch_id', $branchId)
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->orderByDesc('created_at');
 
-        if ($search) $query->where(fn ($q) => $q->where('receipt_number', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
-        if ($status) $query->where('status', $status);
-        if ($method) $query->where('payment_method', $method);
+        if ($search) {
+            $query->where(fn ($q) => $q->where('receipt_number', 'like', "%{$search}%")->orWhere('customer_name', 'like', "%{$search}%"));
+        }
+        if ($status) {
+            $query->where('status', $status);
+        }
+        if ($method) {
+            $query->where('payment_method', $method);
+        }
 
         $sales = $query->paginate(25)->withQueryString();
 
@@ -571,34 +573,34 @@ class PosController extends Controller
         $branch = Auth::user()->branch;
 
         return Inertia::render('Pos/History', [
-            'sales'    => $sales->through(fn ($s) => $this->mapSale($s, brief: true)),
-            'summary'  => [
+            'sales' => $sales->through(fn ($s) => $this->mapSale($s, brief: true)),
+            'summary' => [
                 // For installment sales only the down-payment was collected at POS; use payment_amount for those
-                'total_sales'       => (float) (clone $base)
+                'total_sales' => (float) (clone $base)
                     ->selectRaw('SUM(CASE WHEN payment_method = "installment" THEN amount_paid WHEN payment_method IN ("credit","mixed") THEN 0 ELSE total END) as collected')
                     ->value('collected')
-                    + \App\Models\InstallmentPayment::totalsForRange($from, $to, $branchId)['total']
+                    + InstallmentPayment::totalsForRange($from, $to, $branchId)['total']
                     + (float) CustomerPayment::where('branch_id', $branchId)->whereBetween('payment_date', [$from, $to])->sum('amount'),
-                'total_count'       => $base->count(),
-                'cash_total'        => (float) (clone $base)->where('payment_method', 'cash')->sum('total'),
-                'gcash_total'       => (float) (clone $base)->where('payment_method', 'gcash')->sum('total'),
-                'card_total'        => (float) (clone $base)->where('payment_method', 'card')->sum('total'),
-                'installment_dp'    => (float) (clone $base)->where('payment_method', 'installment')->sum('payment_amount'),
-                'credit_paid'       => (float) CustomerPayment::where('branch_id', $branchId)->whereBetween('payment_date', [$from, $to])->sum('amount'),
-                'credit_balance'    => (float) (clone $base)->where('balance_due', '>', 0)->sum('balance_due'),
-                'remittance_total'  => \App\Models\InstallmentPayment::totalsForRange($from, $to, $branchId)['total'],
-                'discount_total'    => (float) (clone $base)->sum('discount_amount'),
+                'total_count' => $base->count(),
+                'cash_total' => (float) (clone $base)->where('payment_method', 'cash')->sum('total'),
+                'gcash_total' => (float) (clone $base)->where('payment_method', 'gcash')->sum('total'),
+                'card_total' => (float) (clone $base)->where('payment_method', 'card')->sum('total'),
+                'installment_dp' => (float) (clone $base)->where('payment_method', 'installment')->sum('payment_amount'),
+                'credit_paid' => (float) CustomerPayment::where('branch_id', $branchId)->whereBetween('payment_date', [$from, $to])->sum('amount'),
+                'credit_balance' => (float) (clone $base)->where('balance_due', '>', 0)->sum('balance_due'),
+                'remittance_total' => InstallmentPayment::totalsForRange($from, $to, $branchId)['total'],
+                'discount_total' => (float) (clone $base)->sum('discount_amount'),
             ],
-            'filters'  => [
-                'search'         => $search,
-                'status'         => $status,
+            'filters' => [
+                'search' => $search,
+                'status' => $status,
                 'payment_method' => $method,
-                'from'           => $from,
-                'to'             => $to,
+                'from' => $from,
+                'to' => $to,
             ],
-            'branch'   => $branch ? [
-                'id'            => $branch->id,
-                'name'          => $branch->name,
+            'branch' => $branch ? [
+                'id' => $branch->id,
+                'name' => $branch->name,
                 'business_type' => $branch->business_type,
             ] : null,
             'is_admin' => $isAdmin,
@@ -611,13 +613,18 @@ class PosController extends Controller
     {
         $this->authorizeSale($sale);
         $user = Auth::user();
-        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) abort(403, 'You can only edit sales made today.');
+        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) {
+            abort(403, 'You can only edit sales made today.');
+        }
 
-        $sale->load(['items.product', 'items.variant']);
+        $sale->load(['items.product', 'items.variant', 'items.deviceUnit']);
+        if ($sale->items->contains(fn ($item) => $item->deviceUnit !== null)) {
+            abort(422, 'Sales containing serialized devices cannot be edited. Void the sale and create a new transaction instead.');
+        }
         $branchId = $user->branch_id;
 
         $products = Product::query()
-            ->with(['category:id,name', 'stocks' => fn ($q) => $q->where('branch_id', $branchId), 'variants' => fn ($q) => $q->where('is_available', true)->orderBy('sort_order')])
+            ->with(['category:id,name', 'stocks' => fn ($q) => $q->where('branch_id', $branchId), 'variants' => fn ($q) => $q->where('is_available', true)->orderBy('sort_order'), 'deviceUnits' => fn ($q) => $q->where('branch_id', $branchId)->where('status', 'available')])
             ->whereHas('stocks', fn ($q) => $q->where('branch_id', $branchId))
             ->get()->map(fn ($p) => $this->mapProduct($p, $branchId))->values();
 
@@ -629,20 +636,26 @@ class PosController extends Controller
     public function update(Request $request, Sale $sale): RedirectResponse
     {
         $this->authorizeSale($sale);
-        $user     = Auth::user();
+        $user = Auth::user();
         $branchId = $user->branch_id;
 
-        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) return back()->withErrors(['error' => "Only today's sales can be edited."]);
+        if ($sale->items()->whereHas('deviceUnit')->exists()) {
+            return back()->withErrors(['error' => 'Sales containing serialized devices cannot be edited. Void the sale and create a new transaction instead.']);
+        }
+
+        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) {
+            return back()->withErrors(['error' => "Only today's sales can be edited."]);
+        }
 
         $validated = $request->validate([
-            'items'              => ['required', 'array', 'min:1'],
-            'items.*.id'         => ['required', 'exists:products,id'],
-            'items.*.qty'        => ['required', 'integer', 'min:1'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'exists:products,id'],
+            'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
-            'payment_method'     => ['required', 'in:cash,gcash,card,others'],
-            'payment_amount'     => ['nullable', 'numeric', 'min:0'],
-            'customer_name'      => ['nullable', 'string', 'max:80'],
-            'discount_percent'   => ['nullable', 'numeric', 'between:0,100'],
+            'payment_method' => ['required', 'in:cash,gcash,card,others'],
+            'payment_amount' => ['nullable', 'numeric', 'min:0'],
+            'customer_name' => ['nullable', 'string', 'max:80'],
+            'discount_percent' => ['nullable', 'numeric', 'between:0,100'],
         ]);
 
         try {
@@ -652,8 +665,8 @@ class PosController extends Controller
                 // Restore old stock (type-aware for bundles and MTO)
                 $sale->load([
                     'items.product.stocks',
+                    'items.deviceUnit',
                     'items.product.bundle.items.componentProduct.stocks',
-                    'items.product.recipeIngredients.ingredient.stocks',
                 ]);
                 $this->restoreStockForItems($sale->items, $branchId);
                 $sale->items()->delete();
@@ -664,18 +677,19 @@ class PosController extends Controller
                 foreach ($validated['items'] as $item) {
                     $product = Product::with([
                         'variants',
-                        'stocks'                               => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
+                        'stocks' => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
                         'bundle.items.componentProduct.stocks' => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
-                        'recipeIngredients.ingredient.stocks'  => fn ($q) => $q->where('branch_id', $branchId)->lockForUpdate(),
                     ])->findOrFail($item['id']);
 
-                    $stock     = $product->stocks->firstWhere('branch_id', $branchId) ?? $product->stocks->first();
+                    $stock = $product->stocks->firstWhere('branch_id', $branchId) ?? $product->stocks->first();
                     $unitPrice = (float) ($stock?->price ?? 0);
-                    $saleQty   = (int) $item['qty'];
+                    $saleQty = (int) $item['qty'];
 
                     if (! empty($item['variant_id'])) {
                         $v = $product->variants->firstWhere('id', $item['variant_id']);
-                        if ($v) $unitPrice += (float) $v->extra_price;
+                        if ($v) {
+                            $unitPrice += (float) $v->extra_price;
+                        }
                     }
 
                     $this->deductProductStock($product, $saleQty, $branchId, $allowNeg);
@@ -687,14 +701,14 @@ class PosController extends Controller
 
                 $discPct = (float) ($validated['discount_percent'] ?? 0);
                 $discAmt = round($subtotal * ($discPct / 100), 2);
-                $total   = round($subtotal - $discAmt, 2);
-                $paid    = (float) ($validated['payment_amount'] ?? $total);
+                $total = round($subtotal - $discAmt, 2);
+                $paid = (float) ($validated['payment_amount'] ?? $total);
 
                 $sale->update([
                     'payment_method' => $validated['payment_method'], 'payment_amount' => $paid,
-                    'change_amount'  => max(0, round($paid - $total, 2)), 'discount_amount' => $discAmt,
-                    'customer_name'  => $validated['customer_name'] ?? null, 'total' => $total,
-                    'notes'          => $discPct > 0 ? "Discount {$discPct}% (−₱" . number_format($discAmt, 2) . ")" : null,
+                    'change_amount' => max(0, round($paid - $total, 2)), 'discount_amount' => $discAmt,
+                    'customer_name' => $validated['customer_name'] ?? null, 'total' => $total,
+                    'notes' => $discPct > 0 ? "Discount {$discPct}% (−₱".number_format($discAmt, 2).')' : null,
                 ]);
 
                 foreach ($saleItems as $data) {
@@ -714,27 +728,31 @@ class PosController extends Controller
     public function void(Request $request, Sale $sale): RedirectResponse
     {
         $this->authorizeSale($sale);
-        if ($sale->isVoided()) return back()->withErrors(['error' => 'Already voided.']);
+        if ($sale->isVoided()) {
+            return back()->withErrors(['error' => 'Already voided.']);
+        }
 
         $user = Auth::user();
-        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) return back()->withErrors(['error' => "Only today's sales can be voided."]);
+        if ($sale->created_at->isBefore(today()) && ! $user->isAdmin()) {
+            return back()->withErrors(['error' => "Only today's sales can be voided."]);
+        }
+        if ($sale->items()->whereHas('deviceUnit', fn ($q) => $q->where('status', 'in_service'))->exists()) {
+            return back()->withErrors(['error' => 'This sale has a device in an active service job. Complete or cancel the service job before voiding.']);
+        }
 
-        DB::transaction(function () use ($sale, $user, $request) {
+        DB::transaction(function () use ($sale, $request) {
             $branchId = $sale->branch_id;
 
             // Load items with all relations needed for type-aware stock restore
             $sale->load([
                 'items.product.stocks',
+                'items.deviceUnit',
                 'items.product.bundle.items.componentProduct.stocks',
-                'items.product.recipeIngredients.ingredient.stocks',
             ]);
 
             $this->restoreStockForItems($sale->items, $branchId);
 
-            if ($sale->table_order_id) {
-                TableOrder::where('id', $sale->table_order_id)->where('sale_id', $sale->id)->update(['status' => 'open', 'sale_id' => null]);
-            }
-            $sale->update(['status' => 'voided', 'notes' => trim(($sale->notes ?? '') . ' | Voided: ' . ($request->input('reason', 'No reason provided')))]);
+            $sale->update(['status' => 'voided', 'notes' => trim(($sale->notes ?? '').' | Voided: '.($request->input('reason', 'No reason provided')))]);
         });
 
         return back()->with('success', 'Sale voided and stock restored.');
@@ -744,20 +762,34 @@ class PosController extends Controller
 
     public function lookupBarcode(Request $request): JsonResponse
     {
-        $barcode  = $request->string('barcode');
+        $barcode = trim((string) $request->input('barcode', ''));
         $branchId = Auth::user()->branch_id;
 
+        if ($barcode === '') {
+            return response()->json(['found' => false, 'message' => 'Scan value is required.'], 422);
+        }
+
+        $unit = DeviceUnit::where('branch_id', $branchId)->where('status', 'available')
+            ->where(fn ($q) => $q->where('imei', $barcode)->orWhere('imei_2', $barcode)->orWhere('serial_number', $barcode))->first();
+
         $product = Product::with([
-            'stocks'   => fn ($q) => $q->where('branch_id', $branchId),
+            'stocks' => fn ($q) => $q->where('branch_id', $branchId),
             'variants' => fn ($q) => $q->where('is_available', true),
             'category:id,name',
             'bundle.items.componentProduct:id,name',
-            'recipeIngredients.ingredient:id,name',
-        ])->where('barcode', $barcode)->first();
+            'deviceUnits' => fn ($q) => $q->where('branch_id', $branchId)->where('status', 'available'),
+        ])->when($unit, fn ($q) => $q->whereKey($unit->product_id), fn ($q) => $q->where('barcode', $barcode))->first();
 
-        if (! $product) return response()->json(['found' => false, 'message' => 'Product not found.'], 404);
+        if (! $product) {
+            return response()->json(['found' => false, 'message' => 'Product not found.'], 404);
+        }
 
-        return response()->json(['found' => true, 'product' => $this->mapProduct($product, $branchId)]);
+        return response()->json([
+            'found' => true,
+            'product' => $this->mapProduct($product, $branchId),
+            'device_unit_id' => $unit?->id,
+            'scan_value' => $barcode,
+        ]);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -774,87 +806,92 @@ class PosController extends Controller
         // variant product → sum of available variant stocks (approximate; real
         //                   variant stock lives in product_variant_stocks but we
         //                   use the base stock row as a price anchor)
-        $displayStock = match ($p->product_type) {
-            'bundle', 'made_to_order', 'service' => 999,
-            default                              => (int) ($stock?->stock ?? 0),
+        $displayStock = match (true) {
+            (bool) $p->track_serials => $p->deviceUnits->count(),
+            in_array($p->product_type, ['bundle', 'service'], true) => 999,
+            default => (int) ($stock?->stock ?? 0),
         };
 
         return [
-            'id'           => $p->id,
-            'name'         => $p->name,
-            'barcode'      => $p->barcode,
-            'product_img'  => $p->product_img ? asset('storage/' . $p->product_img) : null,
+            'id' => $p->id,
+            'name' => $p->name,
+            'barcode' => $p->barcode,
+            'product_img' => $p->product_img ? asset('storage/'.$p->product_img) : null,
             'product_type' => $p->product_type,
-            'is_taxable'   => (bool) $p->is_taxable,
-            'price'        => (float) ($stock?->price ?? 0),
-            'stock'        => $displayStock,
-            'category'     => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name] : null,
-            'variants'     => $p->variants->map(fn ($v) => [
-                'id'          => $v->id,
-                'name'        => $v->name,
+            'is_taxable' => (bool) $p->is_taxable,
+            'price' => (float) ($stock?->price ?? 0),
+            'stock' => $displayStock,
+            'category' => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name] : null,
+            'variants' => $p->variants->map(fn ($v) => [
+                'id' => $v->id,
+                'name' => $v->name,
                 'extra_price' => (float) $v->extra_price,
-                'attributes'  => $v->attributes ?? [],
-                'is_available'=> $v->is_available,
+                'attributes' => $v->attributes ?? [],
+                'is_available' => $v->is_available,
             ])->values(),
             'has_variants' => $p->variants->count() > 0,
             // Bundle components — info shown on POS card
             'bundle_items' => $p->bundle
                 ? $p->bundle->items->map(fn ($i) => [
-                    'name'     => $i->componentProduct?->name ?? '?',
-                    'qty'      => $i->quantity,
+                    'name' => $i->componentProduct?->name ?? '?',
+                    'qty' => $i->quantity,
                     'required' => $i->is_required,
                 ])->values()
                 : null,
             // Recipe ingredients — info shown for MTO products
-            'recipe_items' => $p->recipeIngredients?->count() > 0
-                ? $p->recipeIngredients->map(fn ($r) => [
-                    'name'     => $r->ingredient?->name ?? '?',
-                    'quantity' => $r->quantity,
-                    'unit'     => $r->unit,
-                ])->values()
-                : null,
+            'recipe_items' => null,
+            'track_serials' => (bool) $p->track_serials,
+            'serialized_units' => $p->deviceUnits?->map(fn ($unit) => [
+                'id' => $unit->id, 'imei' => $unit->imei, 'imei_2' => $unit->imei_2,
+                'serial_number' => $unit->serial_number, 'identifier' => $unit->identifier,
+                'warranty_months' => $unit->warranty_months,
+            ])->values() ?? [],
         ];
     }
 
     private function mapSale(Sale $sale, bool $brief = false): array
     {
         $base = [
-            'id'              => $sale->id,
-            'receipt_number'  => $sale->receipt_number,
-            'status'          => $sale->status,
-            'payment_method'  => $sale->payment_method,
-            'payment_amount'  => (float) $sale->payment_amount,
-            'amount_paid'     => (float) $sale->amount_paid,
-            'balance_due'     => (float) $sale->balance_due,
-            'payment_status'  => $sale->payment_status,
-            'due_date'        => $sale->due_date?->toDateString(),
-            'change_amount'   => (float) $sale->change_amount,
+            'id' => $sale->id,
+            'receipt_number' => $sale->receipt_number,
+            'status' => $sale->status,
+            'payment_method' => $sale->payment_method,
+            'payment_amount' => (float) $sale->payment_amount,
+            'amount_paid' => (float) $sale->amount_paid,
+            'balance_due' => (float) $sale->balance_due,
+            'payment_status' => $sale->payment_status,
+            'due_date' => $sale->due_date?->toDateString(),
+            'change_amount' => (float) $sale->change_amount,
             'discount_amount' => (float) $sale->discount_amount,
-            'total'           => (float) $sale->total,
-            'customer_id'     => $sale->customer_id,
-            'customer_name'   => $sale->customer_name,
-            'customer'        => $sale->customer ? ['id' => $sale->customer->id, 'name' => $sale->customer->name] : null,
-            'notes'           => $sale->notes,
-            'credit_notes'    => $sale->credit_notes,
-            'created_at'      => $sale->created_at?->toIso8601String(),
-            'cashier'         => $sale->user ? trim("{$sale->user->fname} {$sale->user->lname}") : 'Unknown',
-            'table_order_id'  => $sale->table_order_id,
-            'table_label'     => $sale->tableOrder?->table?->label,
+            'total' => (float) $sale->total,
+            'customer_id' => $sale->customer_id,
+            'customer_name' => $sale->customer_name,
+            'customer' => $sale->customer ? ['id' => $sale->customer->id, 'name' => $sale->customer->name] : null,
+            'notes' => $sale->notes,
+            'credit_notes' => $sale->credit_notes,
+            'created_at' => $sale->created_at?->toIso8601String(),
+            'cashier' => $sale->user ? trim("{$sale->user->fname} {$sale->user->lname}") : 'Unknown',
+            'table_order_id' => null,
+            'table_label' => null,
         ];
 
         $base['items'] = $brief
-            ? $sale->items->map(fn ($i) => ['product_name' => $i->product?->name ?? '(deleted)', 'variant_name' => $i->variant?->name, 'quantity' => (int) $i->quantity, 'price' => (float) $i->price, 'item_type' => $i->product?->product_type === 'service' ? 'service' : 'product'])->values()
-            : $sale->items->map(fn ($i) => ['id' => $i->id, 'product_id' => $i->product_id, 'product_name' => $i->product?->name ?? '(deleted)', 'variant_name' => $i->variant?->name, 'quantity' => (int) $i->quantity, 'price' => (float) $i->price, 'total' => (float) $i->total, 'item_type' => $i->product?->product_type === 'service' ? 'service' : 'product'])->values();
+            ? $sale->items->map(fn ($i) => ['product_name' => $i->product?->name ?? '(deleted)', 'variant_name' => $i->variant?->name, 'quantity' => (int) $i->quantity, 'price' => (float) $i->price, 'item_type' => $i->product?->product_type === 'service' ? 'service' : 'product', 'device_identifier' => $i->deviceUnit?->identifier])->values()
+            : $sale->items->map(fn ($i) => ['id' => $i->id, 'product_id' => $i->product_id, 'product_name' => $i->product?->name ?? '(deleted)', 'variant_name' => $i->variant?->name, 'quantity' => (int) $i->quantity, 'price' => (float) $i->price, 'total' => (float) $i->total, 'item_type' => $i->product?->product_type === 'service' ? 'service' : 'product', 'device_identifier' => $i->deviceUnit?->identifier, 'imei' => $i->deviceUnit?->imei, 'serial_number' => $i->deviceUnit?->serial_number, 'warranty_expires_at' => $i->deviceUnit?->warranty_expires_at?->toDateString()])->values();
 
-        if ($brief) $base['item_count'] = $sale->items->count();
+        if ($brief) {
+            $base['item_count'] = $sale->items->count();
+        }
+
         return $base;
     }
 
     private function generateReceiptNumber(int $branchId): string
     {
-        $code  = Auth::user()->branch?->code ?? 'POS';
-        $date  = now()->format('ymd');
+        $code = Auth::user()->branch?->code ?? 'POS';
+        $date = now()->format('ymd');
         $count = Sale::where('branch_id', $branchId)->whereDate('created_at', today())->count() + 1;
-        return strtoupper("{$code}-{$date}-" . str_pad($count, 4, '0', STR_PAD_LEFT));
+
+        return strtoupper("{$code}-{$date}-".str_pad($count, 4, '0', STR_PAD_LEFT));
     }
 }

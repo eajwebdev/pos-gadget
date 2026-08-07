@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -22,18 +22,24 @@ class Product extends Model
         'duration_minutes',
         'status',
         'is_taxable',
+        'track_serials',
+        'warranty_months',
     ];
 
     protected $casts = [
         'product_type' => 'string',
         'duration_minutes' => 'integer',
-        'is_taxable'   => 'boolean',
+        'is_taxable' => 'boolean',
+        'track_serials' => 'boolean',
+        'warranty_months' => 'integer',
     ];
 
     protected $attributes = [
         'product_type' => 'standard',
-        'status'       => 'active',
-        'is_taxable'   => true,
+        'status' => 'active',
+        'is_taxable' => true,
+        'track_serials' => false,
+        'warranty_months' => 12,
     ];
 
     // ── Relationships ──────────────────────────────────────────────
@@ -77,28 +83,44 @@ class Product extends Model
         return $this->hasMany(ProductBundleItem::class, 'component_product_id');
     }
 
-    public function orderItems(): HasMany      { return $this->hasMany(OrderItem::class); }
-    public function saleItems(): HasMany       { return $this->hasMany(SaleItem::class); }
-    public function tableOrderItems(): HasMany { return $this->hasMany(TableOrderItem::class); }
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function saleItems(): HasMany
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
+    public function deviceUnits(): HasMany
+    {
+        return $this->hasMany(DeviceUnit::class);
+    }
 
     /** Recipe lines — for made_to_order products */
-    public function recipeIngredients(): HasMany
-    {
-        return $this->hasMany(RecipeIngredient::class, 'product_id');
-    }
-
     /** Products that use THIS as a raw ingredient */
-    public function usedInRecipes(): HasMany
-    {
-        return $this->hasMany(RecipeIngredient::class, 'ingredient_id');
-    }
-
     // ── Type Helpers ───────────────────────────────────────────────
 
-    public function isStandard(): bool    { return $this->product_type === 'standard'; }
-    public function isMadeToOrder(): bool { return $this->product_type === 'made_to_order'; }
-    public function isBundle(): bool      { return $this->product_type === 'bundle'; }
-    public function isService(): bool     { return $this->product_type === 'service'; }
+    public function isStandard(): bool
+    {
+        return $this->product_type === 'standard';
+    }
+
+    public function isMadeToOrder(): bool
+    {
+        return $this->product_type === 'made_to_order';
+    }
+
+    public function isBundle(): bool
+    {
+        return $this->product_type === 'bundle';
+    }
+
+    public function isService(): bool
+    {
+        return $this->product_type === 'service';
+    }
 
     public function hasVariants(): bool
     {
@@ -112,6 +134,7 @@ class Product extends Model
         if ($this->isBundle()) {
             return $this->bundle?->maxBuildableForBranch($branchId) ?? 0;
         }
+
         return (int) ($this->stocks()->where('branch_id', $branchId)->value('stock') ?? 0);
     }
 
@@ -120,6 +143,7 @@ class Product extends Model
         if ($this->isBundle()) {
             return $this->bundle?->computedPriceForBranch($branchId) ?? 0.00;
         }
+
         return (float) ($this->stocks()->where('branch_id', $branchId)->value('price') ?? 0.00);
     }
 
@@ -137,8 +161,13 @@ class Product extends Model
 
     public function getStockAttribute(): int
     {
-        if ($this->isMadeToOrder()) return $this->getMakeableQuantity();
-        if ($this->isBundle())      return 0; // bundles report per-branch only
+        if ($this->isMadeToOrder()) {
+            return $this->getMakeableQuantity();
+        }
+        if ($this->isBundle()) {
+            return 0;
+        } // bundles report per-branch only
+
         return (int) $this->stocks()->sum('stock');
     }
 
@@ -147,20 +176,35 @@ class Product extends Model
         return (int) $this->stocks()->sum('stock');
     }
 
-    public function getFormattedStockAttribute(): string { return number_format($this->stock); }
-    public function getIsInStockAttribute(): bool        { return $this->stock > 0; }
+    public function getFormattedStockAttribute(): string
+    {
+        return number_format($this->stock);
+    }
+
+    public function getIsInStockAttribute(): bool
+    {
+        return $this->stock > 0;
+    }
 
     public function getIsLowStockAttribute(): bool
     {
         $s = $this->stock;
+
         return $s > 0 && $s <= 5;
     }
 
     public function getStockStatusAttribute(): string
     {
-        if ($this->isBundle())       return 'Bundle';
-        if ($this->stock <= 0)       return 'Out of Stock';
-        if ($this->is_low_stock)     return 'Low Stock';
+        if ($this->isBundle()) {
+            return 'Bundle';
+        }
+        if ($this->stock <= 0) {
+            return 'Out of Stock';
+        }
+        if ($this->is_low_stock) {
+            return 'Low Stock';
+        }
+
         return 'In Stock';
     }
 
@@ -190,23 +234,35 @@ class Product extends Model
 
     public function getMakeableQuantity(): int
     {
-        $recipe = $this->recipeIngredients()->with('ingredient')->get();
-        if ($recipe->isEmpty()) return 0;
-
-        return (int) $recipe->map(function ($line) {
-            $ingredientStock = $line->ingredient->stocks()->sum('stock');
-            if ((float) $line->quantity <= 0) return PHP_INT_MAX;
-            return (int) floor($ingredientStock / (float) $line->quantity);
-        })->min();
+        return 0;
     }
 
     // ── Scopes ─────────────────────────────────────────────────────
 
-    public function scopeStandard($query)       { return $query->where('product_type', 'standard'); }
-    public function scopeMadeToOrder($query)    { return $query->where('product_type', 'made_to_order'); }
-    public function scopeBundles($query)        { return $query->where('product_type', 'bundle'); }
-    public function scopeWithVariants($query)   { return $query->whereHas('variants'); }
-    public function scopeWithoutVariants($query){ return $query->whereDoesntHave('variants'); }
+    public function scopeStandard($query)
+    {
+        return $query->where('product_type', 'standard');
+    }
+
+    public function scopeMadeToOrder($query)
+    {
+        return $query->where('product_type', 'made_to_order');
+    }
+
+    public function scopeBundles($query)
+    {
+        return $query->where('product_type', 'bundle');
+    }
+
+    public function scopeWithVariants($query)
+    {
+        return $query->whereHas('variants');
+    }
+
+    public function scopeWithoutVariants($query)
+    {
+        return $query->whereDoesntHave('variants');
+    }
 
     public function scopeSellable($query)
     {
@@ -221,8 +277,7 @@ class Product extends Model
 
     public function scopeInStockForBranch($query, int $branchId)
     {
-        return $query->whereHas('stocks', fn($q) =>
-            $q->where('branch_id', $branchId)->where('stock', '>', 0)
+        return $query->whereHas('stocks', fn ($q) => $q->where('branch_id', $branchId)->where('stock', '>', 0)
         );
     }
 }

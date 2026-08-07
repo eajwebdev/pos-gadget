@@ -7,7 +7,6 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\ProductStock;
 use App\Models\ProductVariant;
-use App\Models\RecipeIngredient;
 use App\Models\ProductBundle;
 use App\Models\ProductBundleItem;
 use App\Models\ActivityLog;
@@ -260,27 +259,7 @@ class ProductController extends Controller
                 ] : null,
             ])->values();
 
-        // Recipes
-        $recipeProducts = Product::query()
-            ->with(['category:id,name', 'recipeIngredients.ingredient:id,name'])
-            ->where('product_type', 'made_to_order')
-            ->orderBy('name')
-            ->get()
-            ->map(fn($p) => [
-                'id'          => $p->id,
-                'name'        => $p->name,
-                'product_img' => $p->product_img ? asset('storage/' . $p->product_img) : null,
-                'category'    => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name] : null,
-                'recipe'      => $p->recipeIngredients->map(fn($l) => [
-                    'id'                 => $l->id,
-                    'ingredient_id'      => $l->ingredient_id,
-                    'ingredient_name'    => $l->ingredient?->name ?? '(deleted)',
-                    'quantity'           => (float) $l->quantity,
-                    'unit'               => $l->unit,
-                    'notes'              => $l->notes,
-                    'formatted_quantity' => $l->formatted_quantity,
-                ])->values(),
-            ])->values();
+        $recipeProducts = collect();
 
         // Stock management — paginated flat list of product × stock rows
         $stockPerPage  = $request->integer('stock_per_page', 25);
@@ -704,35 +683,6 @@ class ProductController extends Controller
     }
 
     // ── Recipes ────────────────────────────────────────────────────────────────
-
-    public function storeRecipe(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'product_id'    => ['required', 'exists:products,id'],
-            'ingredient_id' => ['required', 'exists:products,id', 'different:product_id'],
-            'quantity'      => ['required', 'numeric', 'min:0.0001'],
-            'unit'          => ['required', 'in:pcs,g,kg,ml,l,tsp,tbsp,cup,oz,lb,pinch'],
-            'notes'         => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $exists = RecipeIngredient::where('product_id', $validated['product_id'])
-            ->where('ingredient_id', $validated['ingredient_id'])
-            ->exists();
-
-        if ($exists) {
-            throw ValidationException::withMessages(['ingredient_id' => 'This ingredient is already in the recipe.']);
-        }
-
-        RecipeIngredient::create($validated);
-
-        return back()->with('message', ['type' => 'success', 'text' => 'Ingredient added to recipe.']);
-    }
-
-    public function destroyRecipe(RecipeIngredient $recipe): RedirectResponse
-    {
-        $recipe->delete();
-        return back()->with('message', ['type' => 'success', 'text' => 'Ingredient removed from recipe.']);
-    }
 
     // ── Stock Adjust ───────────────────────────────────────────────────────────
 

@@ -1,23 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, FormEvent } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { cn } from '@/lib/utils';
-import { routes } from '@/routes';
+import { Eye, EyeOff, Lock, LogIn, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import React, { useEffect, useState, type FormEvent } from 'react';
 
-// ShadCN Components
+import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
+  CardDescription,
+  CardHeader,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { routes } from '@/routes';
 
 interface LoginProps {
   errors?: Record<string, string>;
@@ -56,8 +54,26 @@ export default function Login({ errors: serverErrors, business_name: propBusines
     <>
       <Head title="Login" />
 
-      <div className="min-h-screen flex items-center justify-center bg-muted/40 px-4 sm:px-6 lg:px-8 py-6">
-        <Card className="w-full max-w-md shadow-2xl rounded-3xl overflow-hidden border border-border bg-card">
+      <div className="login-tech-shell min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-6">
+        <div className="login-tech-background" aria-hidden="true">
+          <div className="login-tech-grid" />
+          <div className="login-tech-scan login-tech-scan-a" />
+          <div className="login-tech-scan login-tech-scan-b" />
+          <div className="login-tech-circuit login-tech-circuit-left">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="login-tech-circuit login-tech-circuit-right">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="login-tech-data login-tech-data-a" />
+          <div className="login-tech-data login-tech-data-b" />
+        </div>
+
+        <Card className="relative z-10 w-full max-w-md shadow-2xl rounded-3xl overflow-hidden border border-white/20 bg-card/95 backdrop-blur-xl">
 
           {/* Header */}
           <CardHeader
@@ -67,7 +83,7 @@ export default function Login({ errors: serverErrors, business_name: propBusines
             {/* Logo */}
             <div className="flex justify-center mb-1">
               <img
-                src={logo_url ?? "/uploads/ease-logo.png"}
+                src={logo_url ?? "/uploads/niz-gadgets.png"}
                 alt={businessName}
                 className="h-28 w-auto object-contain drop-shadow-sm"
               />

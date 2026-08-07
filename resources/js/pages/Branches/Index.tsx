@@ -60,7 +60,7 @@ interface BranchForm {
 
 const EMPTY_FORM: BranchForm = {
     name: "", code: "", address: "", phone: "", contact_person: "",
-    supplier_id: "", business_type: "retail",
+    supplier_id: "", business_type: "store",
     use_table_ordering: false, use_variants: false,
     use_expiry_tracking: false, use_recipe_system: false,
     use_bundles: false, is_active: true,
@@ -69,51 +69,18 @@ const EMPTY_FORM: BranchForm = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const typeBadge: Record<string, string> = {
-    cafe:       "bg-purple-500/15 text-purple-400 border border-purple-500/20",
-    restaurant: "bg-orange-500/15 text-orange-400 border border-orange-500/20",
-    food_stall: "bg-yellow-500/15 text-yellow-500 border border-yellow-500/20",
-    bakery:     "bg-pink-500/15 text-pink-400 border border-pink-500/20",
-    bar:        "bg-rose-500/15 text-rose-400 border border-rose-500/20",
-    retail:     "bg-blue-500/15 text-blue-400 border border-blue-500/20",
-    pharmacy:   "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
-    hardware:   "bg-stone-500/15 text-stone-400 border border-stone-500/20",
-    salon:      "bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/20",
-    laundry:    "bg-cyan-500/15 text-cyan-400 border border-cyan-500/20",
-    school:     "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
-    warehouse:  "bg-slate-500/15 text-slate-400 border border-slate-500/20",
-    mixed:      "bg-teal-500/15 text-teal-400 border border-teal-500/20",
+    store:          "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+    service_center: "bg-rose-500/15 text-rose-400 border border-rose-500/20",
 };
 
 const typeIcon: Record<string, string> = {
-    cafe:       "☕",
-    restaurant: "🍽",
-    food_stall: "🥘",
-    bakery:     "🥐",
-    bar:        "🍺",
-    retail:     "🛒",
-    pharmacy:   "💊",
-    hardware:   "🔧",
-    salon:      "✂️",
-    laundry:    "👕",
-    school:     "🎓",
-    warehouse:  "🏭",
-    mixed:      "🏪",
+    store:          "🏬",
+    service_center: "🛠️",
 };
 
 const defaultFlags: Record<string, Partial<BranchForm>> = {
-    cafe:       { use_table_ordering: false, use_variants: true,  use_expiry_tracking: false, use_recipe_system: true,  use_bundles: false },
-    restaurant: { use_table_ordering: true,  use_variants: false, use_expiry_tracking: false, use_recipe_system: true,  use_bundles: false },
-    food_stall: { use_table_ordering: false, use_variants: false, use_expiry_tracking: false, use_recipe_system: true,  use_bundles: false },
-    bakery:     { use_table_ordering: false, use_variants: true,  use_expiry_tracking: true,  use_recipe_system: true,  use_bundles: true  },
-    bar:        { use_table_ordering: true,  use_variants: true,  use_expiry_tracking: false, use_recipe_system: true,  use_bundles: true  },
-    retail:     { use_table_ordering: false, use_variants: true,  use_expiry_tracking: true,  use_recipe_system: false, use_bundles: true  },
-    pharmacy:   { use_table_ordering: false, use_variants: false, use_expiry_tracking: true,  use_recipe_system: false, use_bundles: false },
-    hardware:   { use_table_ordering: false, use_variants: true,  use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
-    salon:      { use_table_ordering: false, use_variants: true,  use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
-    laundry:    { use_table_ordering: false, use_variants: true,  use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
-    school:     { use_table_ordering: false, use_variants: false, use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
-    warehouse:  { use_table_ordering: false, use_variants: true,  use_expiry_tracking: true,  use_recipe_system: false, use_bundles: false },
-    mixed:      { use_table_ordering: true,  use_variants: true,  use_expiry_tracking: true,  use_recipe_system: true,  use_bundles: true  },
+    store:          { use_table_ordering: false, use_variants: true,  use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
+    service_center: { use_table_ordering: false, use_variants: false, use_expiry_tracking: false, use_recipe_system: false, use_bundles: true  },
 };
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
@@ -162,11 +129,11 @@ function BranchDrawer({ mode, branch, suppliers, businessTypes, onClose }: {
                 phone:               branch.phone            ?? "",
                 contact_person:      branch.contact_person   ?? "",
                 supplier_id:         branch.supplier_id?.toString() ?? "",
-                business_type:       branch.business_type,
-                use_table_ordering:  branch.use_table_ordering,
+                business_type:       businessTypes[branch.business_type] ? branch.business_type : "store",
+                use_table_ordering:  false,
                 use_variants:        branch.use_variants,
                 use_expiry_tracking: branch.use_expiry_tracking,
-                use_recipe_system:   branch.use_recipe_system,
+                use_recipe_system:   false,
                 use_bundles:         branch.use_bundles,
                 is_active:           branch.is_active,
             });
@@ -190,7 +157,12 @@ function BranchDrawer({ mode, branch, suppliers, businessTypes, onClose }: {
 
     const handleSubmit = () => {
         setLoading(true); setErrors({});
-        const payload = { ...form, supplier_id: form.supplier_id || null };
+        const payload = {
+            ...form,
+            supplier_id: form.supplier_id || null,
+            use_table_ordering: false,
+            use_recipe_system: false,
+        };
         const isCreate = mode === "create";
         const url = isCreate ? routes.branches.store() : routes.branches.update(branch!.id);
 
@@ -210,8 +182,7 @@ function BranchDrawer({ mode, branch, suppliers, businessTypes, onClose }: {
     };
 
     const flagCount = [
-        form.use_table_ordering, form.use_variants,
-        form.use_expiry_tracking, form.use_recipe_system, form.use_bundles,
+        form.use_variants, form.use_expiry_tracking, form.use_bundles,
     ].filter(Boolean).length;
 
     return (
@@ -291,7 +262,7 @@ function BranchDrawer({ mode, branch, suppliers, businessTypes, onClose }: {
                                                     ? "border-primary bg-primary/5 shadow-sm"
                                                     : "border-border hover:border-primary/30 hover:bg-accent"
                                             )}>
-                                            <span className="text-xl">{typeIcon[val]}</span>
+                                            <span className="text-xl">{typeIcon[val] ?? typeIcon.store}</span>
                                             <div className="min-w-0 flex-1">
                                                 <p className={cn("text-xs font-semibold",
                                                     form.business_type === val ? "text-primary" : "text-foreground"
@@ -345,18 +316,14 @@ function BranchDrawer({ mode, branch, suppliers, businessTypes, onClose }: {
                     ) : (
                         <div className="space-y-3">
                             <p className="text-xs text-muted-foreground pb-1">
-                                Flags are auto-set when you pick a business type but can be customized here.
+                                Flags are auto-set for gadget-store workflows. IMEI / serial tracking is handled per unit in Device Units and POS scanning.
                             </p>
-                            <Toggle checked={form.use_table_ordering}  onChange={v => set("use_table_ordering", v)}
-                                label="Table Ordering"     description="Dine-in table management and kitchen orders" />
                             <Toggle checked={form.use_variants}        onChange={v => set("use_variants", v)}
-                                label="Product Variants"   description="Size / color / flavor variant support" />
+                                label="Product Variants"   description="Model / color / storage variant support" />
                             <Toggle checked={form.use_expiry_tracking} onChange={v => set("use_expiry_tracking", v)}
-                                label="Expiry Tracking"    description="Track batch numbers and expiry dates on stock" />
-                            <Toggle checked={form.use_recipe_system}   onChange={v => set("use_recipe_system", v)}
-                                label="Recipe / BOM"       description="Made-to-order products with ingredient recipes" />
+                                label="Batch / Date Tracking" description="Optional batch or stock date tracking" />
                             <Toggle checked={form.use_bundles}         onChange={v => set("use_bundles", v)}
-                                label="Product Bundles"    description="Bundle multiple products into one sellable item" />
+                                label="Product Bundles"    description="Bundle devices with cases, chargers, or accessories" />
                         </div>
                     )}
                 </div>
@@ -557,9 +524,9 @@ export default function BranchesIndex() {
                                 className={cn("bg-card border rounded-xl p-4 text-left transition-all hover:shadow-sm",
                                     typeFilter === type ? "border-primary bg-primary/5" : "border-border")}>
                                 <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-lg">{typeIcon[type]}</span>
-                                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize", typeBadge[type])}>
-                                        {type}
+                                    <span className="text-lg">{typeIcon[type] ?? typeIcon.store}</span>
+                                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", typeBadge[type] ?? typeBadge.store)}>
+                                        {label}
                                     </span>
                                 </div>
                                 <p className="text-2xl font-bold tabular-nums text-foreground">{count}</p>
@@ -594,7 +561,11 @@ export default function BranchesIndex() {
                                         </td>
                                     </tr>
                                 ) : filtered.map(b => {
-                                    const activeFlags = Object.values(b.feature_flags).filter(Boolean).length;
+                                    const activeFlags = [
+                                        b.use_variants,
+                                        b.use_expiry_tracking,
+                                        b.use_bundles,
+                                    ].filter(Boolean).length;
                                     return (
                                         <tr key={b.id} className="hover:bg-muted/20 transition-colors group">
 
@@ -605,7 +576,7 @@ export default function BranchesIndex() {
                                                         "h-9 w-9 rounded-xl flex items-center justify-center text-base shrink-0",
                                                         b.is_active ? "bg-primary/10" : "bg-muted"
                                                     )}>
-                                                        {typeIcon[b.business_type]}
+                                                        {typeIcon[b.business_type] ?? typeIcon.store}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2">
@@ -623,8 +594,8 @@ export default function BranchesIndex() {
 
                                             {/* Business type */}
                                             <td className="px-4 py-3">
-                                                <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full capitalize", typeBadge[b.business_type])}>
-                                                    {b.business_type}
+                                                <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full", typeBadge[b.business_type] ?? typeBadge.store)}>
+                                                    {b.business_type_label}
                                                 </span>
                                             </td>
 
@@ -657,15 +628,13 @@ export default function BranchesIndex() {
                                                 <div className="flex items-center gap-1.5 mb-1.5">
                                                     <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden w-16">
                                                         <div className="bg-primary h-full rounded-full transition-all"
-                                                            style={{ width: `${(activeFlags / 5) * 100}%` }} />
+                                                            style={{ width: `${(activeFlags / 3) * 100}%` }} />
                                                     </div>
-                                                    <span className="text-xs text-muted-foreground tabular-nums shrink-0">{activeFlags}/5</span>
+                                                    <span className="text-xs text-muted-foreground tabular-nums shrink-0">{activeFlags}/3</span>
                                                 </div>
                                                 <div className="flex gap-1 flex-wrap">
-                                                    {b.use_table_ordering  && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">tables</span>}
                                                     {b.use_variants        && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">variants</span>}
-                                                    {b.use_expiry_tracking && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">expiry</span>}
-                                                    {b.use_recipe_system   && <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">recipes</span>}
+                                                    {b.use_expiry_tracking && <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">batch/date</span>}
                                                     {b.use_bundles         && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">bundles</span>}
                                                 </div>
                                             </td>

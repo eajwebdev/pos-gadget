@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SaleItem extends Model
 {
@@ -25,9 +26,9 @@ class SaleItem extends Model
     ];
 
     protected $casts = [
-        'quantity'            => 'integer',
-        'price'               => 'decimal:2',
-        'total'               => 'decimal:2',
+        'quantity' => 'integer',
+        'price' => 'decimal:2',
+        'total' => 'decimal:2',
         'is_bundle_component' => 'boolean',
     ];
 
@@ -48,8 +49,20 @@ class SaleItem extends Model
 
     // ── Relationships ──────────────────────────────────────────────
 
-    public function sale(): BelongsTo    { return $this->belongsTo(Sale::class); }
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function deviceUnit(): HasOne
+    {
+        return $this->hasOne(DeviceUnit::class);
+    }
 
     public function variant(): BelongsTo
     {
@@ -70,14 +83,32 @@ class SaleItem extends Model
 
     // ── Helpers ────────────────────────────────────────────────────
 
-    public function isBundleHeader(): bool    { return $this->product?->isBundle() && !$this->is_bundle_component; }
-    public function isBundleComponent(): bool { return (bool) $this->is_bundle_component; }
-    public function isStandaloneItem(): bool  { return !$this->is_bundle_component && !$this->isBundleHeader(); }
+    public function isBundleHeader(): bool
+    {
+        return $this->product?->isBundle() && ! $this->is_bundle_component;
+    }
+
+    public function isBundleComponent(): bool
+    {
+        return (bool) $this->is_bundle_component;
+    }
+
+    public function isStandaloneItem(): bool
+    {
+        return ! $this->is_bundle_component && ! $this->isBundleHeader();
+    }
 
     // ── Accessors ──────────────────────────────────────────────────
 
-    public function getFormattedPriceAttribute(): string { return '₱' . number_format($this->price, 2); }
-    public function getFormattedTotalAttribute(): string { return '₱' . number_format($this->total, 2); }
+    public function getFormattedPriceAttribute(): string
+    {
+        return '₱'.number_format($this->price, 2);
+    }
+
+    public function getFormattedTotalAttribute(): string
+    {
+        return '₱'.number_format($this->total, 2);
+    }
 
     /**
      * Display name for receipts and reports.
@@ -89,11 +120,11 @@ class SaleItem extends Model
         $name = $this->product?->name ?? 'Unknown';
 
         if ($this->variant) {
-            $name .= ' (' . $this->variant->name . ')';
+            $name .= ' ('.$this->variant->name.')';
         }
 
         if ($this->is_bundle_component) {
-            $name = '  — ' . $name; // indent component rows on receipt
+            $name = '  — '.$name; // indent component rows on receipt
         }
 
         return $name;

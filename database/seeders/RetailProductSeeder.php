@@ -4,84 +4,112 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\DeviceUnit;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantStock;
+use App\Models\Supplier;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class RetailProductSeeder extends Seeder
 {
-    /**
-     * Standard retail products for ABC Main Store (ABC1).
-     *
-     * All are product_type = 'standard' — stock deducted directly on sale.
-     * No recipe system used here.
-     *
-     * Clothing/merchandise → SIZE VARIANTS (S / M / L / XL / 2XL)
-     * Groceries, beverages, personal care → no variants
-     *
-     * expiry_date is NOT set in the seeder — it is recorded per
-     * batch when stock is received via GRN from a supplier.
-     */
     public function run(): void
     {
         $branch = Branch::where('code', 'ABC1')->first();
 
-        if (!$branch) {
-            $this->command->warn('Branch ABC1 not found. Skipping.');
+        if (! $branch) {
+            $this->command->warn('Branch ABC1 not found. Skipping gadget catalog.');
+
             return;
         }
 
-        $cats         = Category::pluck('id', 'name');
+        $categories = Category::pluck('id', 'name');
+        $supplier = Supplier::where('name', 'ABC Trading')->first() ?? Supplier::first();
         $productCount = 0;
         $variantCount = 0;
+        $deviceUnitCount = 0;
 
-        // ── Helpers ────────────────────────────────────────────────
+        $syncDeviceIdentifiers = function (DeviceUnit $unit): void {
+            DB::table('device_unit_identifiers')
+                ->where('device_unit_id', $unit->id)
+                ->delete();
 
-        $make = function (array $p) use ($cats, $branch, &$productCount): Product {
-            $product = Product::firstOrCreate(
-                ['barcode' => $p['barcode']],
+            foreach ([
+                'imei' => $unit->imei,
+                'imei_2' => $unit->imei_2,
+                'serial_number' => $unit->serial_number,
+            ] as $kind => $value) {
+                if (! $value) {
+                    continue;
+                }
+
+                DB::table('device_unit_identifiers')->updateOrInsert(
+                    ['value' => $value],
+                    [
+                        'device_unit_id' => $unit->id,
+                        'kind' => $kind,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]
+                );
+            }
+        };
+
+        $makeProduct = function (array $data) use ($branch, $categories, &$productCount): Product {
+            $product = Product::updateOrCreate(
+                ['barcode' => $data['barcode']],
                 [
-                    'name'         => $p['name'],
-                    'category_id'  => $cats[$p['category']] ?? null,
-                    'product_type' => 'standard',
+                    'name' => $data['name'],
+                    'description' => $data['description'] ?? 'NizPhone Gadgets catalog item.',
+                    'category_id' => $categories[$data['category']] ?? null,
+                    'product_type' => $data['product_type'] ?? 'standard',
+                    'status' => 'active',
+                    'is_taxable' => $data['is_taxable'] ?? true,
+                    'track_serials' => $data['track_serials'] ?? false,
+                    'warranty_months' => $data['warranty_months'] ?? 12,
+                    'duration_minutes' => $data['duration_minutes'] ?? null,
                 ]
             );
 
             ProductStock::updateOrCreate(
                 ['product_id' => $product->id, 'branch_id' => $branch->id],
                 [
-                    'stock'   => $p['stock'],
-                    'capital' => $p['capital'],
-                    'markup'  => $p['markup'],
+                    'stock' => $data['stock'],
+                    'capital' => $data['capital'],
+                    'markup' => $data['markup'],
+                    'batch_number' => $data['batch_number'] ?? null,
                 ]
             );
 
             $productCount++;
+
             return $product;
         };
 
         $makeVariants = function (Product $product, array $variants) use ($branch, &$variantCount): void {
-            foreach ($variants as $i => $v) {
-                $variant = ProductVariant::firstOrCreate(
-                    ['product_id' => $product->id, 'name' => $v['name']],
+            foreach ($variants as $index => $data) {
+                $variant = ProductVariant::updateOrCreate(
+                    ['sku' => $data['sku']],
                     [
-                        'product_id'  => $product->id,
-                        'name'        => $v['name'],
-                        'attributes'  => $v['attributes'] ?? [],
-                        'extra_price' => $v['extra_price'] ?? 0,
-                        'is_available'=> true,
-                        'sort_order'  => $i,
+                        'product_id' => $product->id,
+                        'name' => $data['name'],
+                        'barcode' => $data['barcode'] ?? null,
+                        'attributes' => $data['attributes'] ?? [],
+                        'extra_price' => $data['extra_price'] ?? 0,
+                        'is_available' => true,
+                        'sort_order' => $index,
                     ]
                 );
 
                 ProductVariantStock::updateOrCreate(
                     ['product_variant_id' => $variant->id, 'branch_id' => $branch->id],
                     [
-                        'stock'   => $v['stock'],
-                        'capital' => $v['capital'],
-                        'markup'  => $v['markup'],
+                        'stock' => $data['stock'],
+                        'capital' => $data['capital'],
+                        'markup' => $data['markup'],
+                        'batch_number' => $data['batch_number'] ?? null,
                     ]
                 );
 
@@ -89,142 +117,175 @@ class RetailProductSeeder extends Seeder
             }
         };
 
-        // Clothing sizes helper — S/M/L same price, XL +₱20, 2XL +₱40
-        $clothingSizes = fn(float $capital, float $markup, int $qty = 10) => [
-            ['name' => 'Small (S)',  'attributes' => ['size' => 'S'],  'extra_price' => 0,  'capital' => $capital,      'markup' => $markup, 'stock' => $qty],
-            ['name' => 'Medium (M)', 'attributes' => ['size' => 'M'],  'extra_price' => 0,  'capital' => $capital,      'markup' => $markup, 'stock' => $qty],
-            ['name' => 'Large (L)',  'attributes' => ['size' => 'L'],  'extra_price' => 0,  'capital' => $capital,      'markup' => $markup, 'stock' => $qty],
-            ['name' => 'XL',         'attributes' => ['size' => 'XL'], 'extra_price' => 20, 'capital' => $capital + 10, 'markup' => $markup, 'stock' => $qty],
-            ['name' => '2XL',        'attributes' => ['size' => '2XL'],'extra_price' => 40, 'capital' => $capital + 20, 'markup' => $markup, 'stock' => (int) ceil($qty / 2)],
+        $seedDeviceUnits = function (Product $product, array $data, int $index) use ($branch, $supplier, $syncDeviceIdentifiers, &$deviceUnitCount): void {
+            if (! ($data['track_serials'] ?? false)) {
+                return;
+            }
+
+            $stock = (int) $data['stock'];
+            $kind = $data['device_kind'] ?? 'phone';
+
+            for ($unitIndex = 1; $unitIndex <= $stock; $unitIndex++) {
+                $imei = $kind === 'phone'
+                    ? '356789'.str_pad((string) (930000000 + ($index * 100) + $unitIndex), 9, '0', STR_PAD_LEFT)
+                    : null;
+
+                $unit = DeviceUnit::updateOrCreate(
+                    [
+                        'serial_number' => 'NIZ-'.$data['barcode'].'-'.str_pad((string) $unitIndex, 3, '0', STR_PAD_LEFT),
+                    ],
+                    [
+                        'product_id' => $product->id,
+                        'branch_id' => $branch->id,
+                        'supplier_id' => $supplier?->id,
+                        'sale_item_id' => null,
+                        'imei' => $imei,
+                        'imei_2' => null,
+                        'status' => 'available',
+                        'cost' => $data['capital'],
+                        'acquired_at' => now()->subDays(45 - min($index, 30))->toDateString(),
+                        'sold_at' => null,
+                        'warranty_months' => $data['warranty_months'] ?? 12,
+                        'warranty_expires_at' => null,
+                        'notes' => 'Seeded serialized unit for NizPhone demo inventory.',
+                    ]
+                );
+
+                $syncDeviceIdentifiers($unit);
+                $deviceUnitCount++;
+            }
+        };
+
+        $catalog = [
+            // iPhones
+            ['barcode' => 'NP1001', 'name' => 'iPhone 15 Pro Max', 'category' => 'iPhones', 'capital' => 66500, 'markup' => 18.05, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1002', 'name' => 'iPhone 15 Pro', 'category' => 'iPhones', 'capital' => 56000, 'markup' => 17.86, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1003', 'name' => 'iPhone 15', 'category' => 'iPhones', 'capital' => 43000, 'markup' => 18.60, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1004', 'name' => 'iPhone 14 Pro Max', 'category' => 'iPhones', 'capital' => 52000, 'markup' => 17.31, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1005', 'name' => 'iPhone 14', 'category' => 'iPhones', 'capital' => 35000, 'markup' => 20.00, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1006', 'name' => 'iPhone 13', 'category' => 'iPhones', 'capital' => 28000, 'markup' => 21.43, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1007', 'name' => 'iPhone 12', 'category' => 'iPhones', 'capital' => 21000, 'markup' => 23.81, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 6],
+            ['barcode' => 'NP1008', 'name' => 'iPhone 11', 'category' => 'iPhones', 'capital' => 16000, 'markup' => 25.00, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 6],
+
+            // Android phones
+            ['barcode' => 'NP1101', 'name' => 'Samsung Galaxy S24 Ultra', 'category' => 'Android Phones', 'capital' => 60000, 'markup' => 18.33, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1102', 'name' => 'Samsung Galaxy S24', 'category' => 'Android Phones', 'capital' => 42000, 'markup' => 19.05, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1103', 'name' => 'Samsung Galaxy A55 5G', 'category' => 'Android Phones', 'capital' => 22000, 'markup' => 22.73, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1104', 'name' => 'Samsung Galaxy A35 5G', 'category' => 'Android Phones', 'capital' => 17000, 'markup' => 23.53, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1105', 'name' => 'OPPO Reno11 5G', 'category' => 'Android Phones', 'capital' => 21000, 'markup' => 23.81, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1106', 'name' => 'vivo V30 5G', 'category' => 'Android Phones', 'capital' => 23000, 'markup' => 21.74, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1107', 'name' => 'Xiaomi 14', 'category' => 'Android Phones', 'capital' => 39000, 'markup' => 20.51, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1108', 'name' => 'Redmi Note 13 Pro+ 5G', 'category' => 'Android Phones', 'capital' => 21000, 'markup' => 23.81, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1109', 'name' => 'realme 12 Pro+ 5G', 'category' => 'Android Phones', 'capital' => 23000, 'markup' => 21.74, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+            ['barcode' => 'NP1110', 'name' => 'Huawei nova 12 SE', 'category' => 'Android Phones', 'capital' => 17000, 'markup' => 23.53, 'stock' => 4, 'track_serials' => true, 'device_kind' => 'phone', 'warranty_months' => 12],
+
+            // Laptops
+            ['barcode' => 'NP2001', 'name' => 'MacBook Air 13-inch M2', 'category' => 'Laptops', 'capital' => 52000, 'markup' => 17.31, 'stock' => 2, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2002', 'name' => 'MacBook Air 15-inch M3', 'category' => 'Laptops', 'capital' => 71000, 'markup' => 15.49, 'stock' => 2, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2003', 'name' => 'MacBook Pro 14-inch M3', 'category' => 'Laptops', 'capital' => 92000, 'markup' => 15.22, 'stock' => 2, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2004', 'name' => 'ASUS Vivobook 15', 'category' => 'Laptops', 'capital' => 28000, 'markup' => 25.00, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2005', 'name' => 'ASUS TUF Gaming A15', 'category' => 'Laptops', 'capital' => 52000, 'markup' => 17.31, 'stock' => 2, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2006', 'name' => 'Lenovo IdeaPad Slim 3', 'category' => 'Laptops', 'capital' => 26000, 'markup' => 26.92, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2007', 'name' => 'Acer Aspire 5', 'category' => 'Laptops', 'capital' => 30000, 'markup' => 23.33, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+            ['barcode' => 'NP2008', 'name' => 'HP Pavilion 14', 'category' => 'Laptops', 'capital' => 34000, 'markup' => 22.06, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'laptop', 'warranty_months' => 12],
+
+            // Tablets
+            ['barcode' => 'NP3001', 'name' => 'iPad 10th Gen', 'category' => 'Tablets', 'capital' => 24000, 'markup' => 25.00, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'tablet', 'warranty_months' => 12],
+            ['barcode' => 'NP3002', 'name' => 'iPad Air M2', 'category' => 'Tablets', 'capital' => 39000, 'markup' => 20.51, 'stock' => 2, 'track_serials' => true, 'device_kind' => 'tablet', 'warranty_months' => 12],
+            ['barcode' => 'NP3003', 'name' => 'Samsung Galaxy Tab S9 FE', 'category' => 'Tablets', 'capital' => 25000, 'markup' => 24.00, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'tablet', 'warranty_months' => 12],
+            ['barcode' => 'NP3004', 'name' => 'Xiaomi Pad 6', 'category' => 'Tablets', 'capital' => 17000, 'markup' => 23.53, 'stock' => 3, 'track_serials' => true, 'device_kind' => 'tablet', 'warranty_months' => 12],
+
+            // Accessories
+            ['barcode' => 'NP4001', 'name' => 'Apple 20W USB-C Power Adapter', 'category' => 'Chargers & Cables', 'capital' => 900, 'markup' => 66.67, 'stock' => 25],
+            ['barcode' => 'NP4002', 'name' => 'USB-C to Lightning Cable 1m', 'category' => 'Chargers & Cables', 'capital' => 450, 'markup' => 77.78, 'stock' => 30],
+            ['barcode' => 'NP4003', 'name' => 'USB-C to USB-C Cable 1m', 'category' => 'Chargers & Cables', 'capital' => 350, 'markup' => 85.71, 'stock' => 30],
+            ['barcode' => 'NP4004', 'name' => 'MagSafe Wireless Charger', 'category' => 'Chargers & Cables', 'capital' => 1600, 'markup' => 56.25, 'stock' => 12],
+            ['barcode' => 'NP4005', 'name' => '10,000mAh Power Bank', 'category' => 'Chargers & Cables', 'capital' => 850, 'markup' => 76.47, 'stock' => 18],
+            ['barcode' => 'NP4101', 'name' => 'Tempered Glass for iPhone', 'category' => 'Cases & Protection', 'capital' => 80, 'markup' => 212.50, 'stock' => 60],
+            ['barcode' => 'NP4102', 'name' => 'Clear Case for iPhone', 'category' => 'Cases & Protection', 'capital' => 120, 'markup' => 191.67, 'stock' => 45],
+            ['barcode' => 'NP4103', 'name' => 'Shockproof Android Case', 'category' => 'Cases & Protection', 'capital' => 140, 'markup' => 185.71, 'stock' => 40],
+            ['barcode' => 'NP4201', 'name' => 'AirPods Pro 2', 'category' => 'Audio', 'capital' => 10500, 'markup' => 23.81, 'stock' => 8],
+            ['barcode' => 'NP4202', 'name' => 'Samsung Galaxy Buds FE', 'category' => 'Audio', 'capital' => 3200, 'markup' => 40.63, 'stock' => 10],
+            ['barcode' => 'NP4301', 'name' => 'Apple Watch SE 2', 'category' => 'Smart Watches', 'capital' => 13500, 'markup' => 25.93, 'stock' => 5, 'track_serials' => true, 'device_kind' => 'watch', 'warranty_months' => 12],
+            ['barcode' => 'NP4302', 'name' => 'Samsung Galaxy Watch6', 'category' => 'Smart Watches', 'capital' => 12500, 'markup' => 24.00, 'stock' => 5, 'track_serials' => true, 'device_kind' => 'watch', 'warranty_months' => 12],
+
+            // Services / repair
+            ['barcode' => 'NP9001', 'name' => 'Screen Protector Installation', 'category' => 'Repair Services', 'capital' => 250, 'markup' => 0, 'stock' => 999, 'product_type' => 'service', 'duration_minutes' => 10, 'is_taxable' => false, 'warranty_months' => 0],
+            ['barcode' => 'NP9002', 'name' => 'Phone Diagnostic Check', 'category' => 'Repair Services', 'capital' => 500, 'markup' => 0, 'stock' => 999, 'product_type' => 'service', 'duration_minutes' => 30, 'is_taxable' => false, 'warranty_months' => 0],
+            ['barcode' => 'NP9003', 'name' => 'Battery Replacement Labor', 'category' => 'Repair Services', 'capital' => 800, 'markup' => 0, 'stock' => 999, 'product_type' => 'service', 'duration_minutes' => 60, 'is_taxable' => false, 'warranty_months' => 1],
+            ['barcode' => 'NP9004', 'name' => 'Laptop Cleaning Service', 'category' => 'Repair Services', 'capital' => 1000, 'markup' => 0, 'stock' => 999, 'product_type' => 'service', 'duration_minutes' => 90, 'is_taxable' => false, 'warranty_months' => 0],
         ];
 
-        // ══════════════════════════════════════════════════════════
-        // GROCERIES
-        // ══════════════════════════════════════════════════════════
-        foreach ([
-            ['barcode' => '3000001', 'name' => 'Rice (per kg)',          'capital' => 52.00, 'markup' => 15.38, 'stock' => 200],
-            ['barcode' => '3000002', 'name' => 'Canned Sardines 155g',   'capital' => 22.00, 'markup' => 36.36, 'stock' => 100],
-            ['barcode' => '3000003', 'name' => 'Canned Tuna 155g',       'capital' => 30.00, 'markup' => 33.33, 'stock' => 100],
-            ['barcode' => '3000004', 'name' => 'Corned Beef 260g',       'capital' => 55.00, 'markup' => 27.27, 'stock' => 80],
-            ['barcode' => '3000005', 'name' => 'Soy Sauce 250ml',        'capital' => 18.00, 'markup' => 38.89, 'stock' => 60],
-            ['barcode' => '3000006', 'name' => 'Vinegar 250ml',          'capital' => 15.00, 'markup' => 46.67, 'stock' => 60],
-            ['barcode' => '3000007', 'name' => 'Cooking Oil 1L',         'capital' => 80.00, 'markup' => 25.00, 'stock' => 50],
-            ['barcode' => '3000008', 'name' => 'White Sugar 1kg',        'capital' => 65.00, 'markup' => 23.08, 'stock' => 80],
-            ['barcode' => '3000009', 'name' => 'Salt 500g',              'capital' => 18.00, 'markup' => 38.89, 'stock' => 80],
-            ['barcode' => '3000010', 'name' => 'Instant Noodles (pack)', 'capital' => 12.00, 'markup' => 66.67, 'stock' => 150],
-            ['barcode' => '3000011', 'name' => 'Pancit Canton (pack)',   'capital' => 14.00, 'markup' => 57.14, 'stock' => 100],
-            ['barcode' => '3000012', 'name' => '3-in-1 Coffee Sachet',   'capital' => 8.00,  'markup' => 87.50, 'stock' => 200],
-            ['barcode' => '3000013', 'name' => 'Tomato Ketchup 320g',    'capital' => 42.00, 'markup' => 28.57, 'stock' => 40],
-            ['barcode' => '3000014', 'name' => 'Peanut Butter 330g',     'capital' => 68.00, 'markup' => 22.06, 'stock' => 30],
-            ['barcode' => '3000015', 'name' => 'Mayonnaise 220ml',       'capital' => 48.00, 'markup' => 25.00, 'stock' => 30],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'Groceries']));
+        foreach ($catalog as $index => $data) {
+            $product = $makeProduct(array_merge([
+                'description' => 'NizPhone Gadgets catalog item with branch stock and warranty workflow.',
+                'track_serials' => false,
+                'warranty_months' => 12,
+                'product_type' => 'standard',
+                'is_taxable' => true,
+            ], $data));
+
+            $seedDeviceUnits($product, $data, $index + 1);
         }
 
-        // ══════════════════════════════════════════════════════════
-        // BEVERAGES
-        // ══════════════════════════════════════════════════════════
-        foreach ([
-            ['barcode' => '3000020', 'name' => 'Bottled Water 500ml',    'capital' => 8.00,  'markup' => 87.50, 'stock' => 200],
-            ['barcode' => '3000021', 'name' => 'Bottled Water 1L',       'capital' => 15.00, 'markup' => 66.67, 'stock' => 100],
-            ['barcode' => '3000022', 'name' => 'Canned Soda 330ml',      'capital' => 28.00, 'markup' => 42.86, 'stock' => 72],
-            ['barcode' => '3000023', 'name' => 'Juice Tetra Pack 200ml', 'capital' => 14.00, 'markup' => 71.43, 'stock' => 80],
-            ['barcode' => '3000024', 'name' => 'Sports Drink 500ml',     'capital' => 38.00, 'markup' => 42.11, 'stock' => 48],
-            ['barcode' => '3000025', 'name' => 'Energy Drink 250ml',     'capital' => 48.00, 'markup' => 35.42, 'stock' => 24],
-            ['barcode' => '3000026', 'name' => 'Chocolate Drink 180ml',  'capital' => 18.00, 'markup' => 66.67, 'stock' => 60],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'Beverages']));
+        $variantSets = [
+            'NP1001' => [['256GB / Natural Titanium', 0, 2], ['512GB / Blue Titanium', 12000, 1]],
+            'NP1002' => [['128GB / Black Titanium', 0, 2], ['256GB / White Titanium', 7000, 1]],
+            'NP1003' => [['128GB / Pink', 0, 2], ['256GB / Black', 6000, 2]],
+            'NP1006' => [['128GB / Midnight', 0, 2], ['256GB / Starlight', 5000, 2]],
+            'NP1101' => [['256GB / Titanium Gray', 0, 2], ['512GB / Titanium Black', 10000, 1]],
+            'NP1103' => [['128GB / Awesome Navy', 0, 2], ['256GB / Awesome Lilac', 3500, 2]],
+            'NP1108' => [['256GB / Midnight Black', 0, 2], ['512GB / Moonlight White', 4000, 2]],
+            'NP2001' => [['8GB / 256GB / Midnight', 0, 1], ['8GB / 512GB / Starlight', 9000, 1]],
+            'NP2004' => [['8GB / 512GB / Silver', 0, 2], ['16GB / 512GB / Blue', 6000, 1]],
+            'NP2005' => [['Ryzen 5 / RTX 3050', 0, 1], ['Ryzen 7 / RTX 4060', 18000, 1]],
+            'NP3001' => [['64GB / Wi-Fi / Blue', 0, 2], ['256GB / Wi-Fi / Silver', 9000, 1]],
+            'NP4201' => [['USB-C Case', 0, 5], ['Lightning Case', -500, 3]],
+            'NP4301' => [['40mm / Midnight', 0, 3], ['44mm / Starlight', 2500, 2]],
+        ];
+
+        foreach ($variantSets as $barcode => $variants) {
+            $product = Product::where('barcode', $barcode)->first();
+
+            if (! $product) {
+                continue;
+            }
+
+            $variantData = [];
+            foreach ($variants as $index => [$name, $extraPrice, $stock]) {
+                $variantData[] = [
+                    'sku' => $barcode.'-V'.($index + 1),
+                    'barcode' => $barcode.'V'.($index + 1),
+                    'name' => $name,
+                    'attributes' => $this->variantAttributes($name),
+                    'extra_price' => $extraPrice,
+                    'stock' => $stock,
+                    'capital' => (float) ProductStock::where('product_id', $product->id)->where('branch_id', $branch->id)->value('price'),
+                    'markup' => 0,
+                ];
+            }
+
+            $makeVariants($product, $variantData);
         }
 
-        // ══════════════════════════════════════════════════════════
-        // SNACKS
-        // ══════════════════════════════════════════════════════════
-        foreach ([
-            ['barcode' => '3000030', 'name' => 'Potato Chips 60g',       'capital' => 22.00, 'markup' => 59.09, 'stock' => 80],
-            ['barcode' => '3000031', 'name' => 'Cheese Curls 75g',       'capital' => 18.00, 'markup' => 66.67, 'stock' => 60],
-            ['barcode' => '3000032', 'name' => 'Crackers 250g',          'capital' => 28.00, 'markup' => 42.86, 'stock' => 60],
-            ['barcode' => '3000033', 'name' => 'Chocolate Cookies 200g', 'capital' => 38.00, 'markup' => 42.11, 'stock' => 40],
-            ['barcode' => '3000034', 'name' => 'Candy Roll (per piece)', 'capital' => 2.00,  'markup' => 150.0, 'stock' => 200],
-            ['barcode' => '3000035', 'name' => 'Chocolate Bar 50g',      'capital' => 22.00, 'markup' => 59.09, 'stock' => 60],
-            ['barcode' => '3000036', 'name' => 'Gummy Bears 100g',       'capital' => 28.00, 'markup' => 42.86, 'stock' => 40],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'Snacks']));
+        $this->command->info("✓ NizPhone gadget catalog seeded ({$productCount} products, {$variantCount} variants, {$deviceUnitCount} serialized units)");
+    }
+
+    private function variantAttributes(string $name): array
+    {
+        $parts = array_map('trim', explode('/', $name));
+        $attributes = [];
+
+        foreach ($parts as $part) {
+            if (str_contains($part, 'GB') || str_contains($part, 'TB')) {
+                $attributes[] = ['storage_or_memory' => $part];
+            } elseif (preg_match('/\d+mm/i', $part)) {
+                $attributes[] = ['size' => $part];
+            } else {
+                $attributes[] = ['color_or_option' => $part];
+            }
         }
 
-        // ══════════════════════════════════════════════════════════
-        // PERSONAL CARE
-        // ══════════════════════════════════════════════════════════
-        foreach ([
-            ['barcode' => '3000040', 'name' => 'Shampoo Sachet',          'capital' => 5.00,  'markup' => 100.0, 'stock' => 200],
-            ['barcode' => '3000041', 'name' => 'Conditioner Sachet',      'capital' => 5.00,  'markup' => 100.0, 'stock' => 150],
-            ['barcode' => '3000042', 'name' => 'Shampoo 200ml',           'capital' => 78.00, 'markup' => 28.21, 'stock' => 40],
-            ['barcode' => '3000043', 'name' => 'Soap Bar 90g',            'capital' => 28.00, 'markup' => 42.86, 'stock' => 80],
-            ['barcode' => '3000044', 'name' => 'Toothpaste 75ml',         'capital' => 38.00, 'markup' => 42.11, 'stock' => 60],
-            ['barcode' => '3000045', 'name' => 'Toothbrush',              'capital' => 22.00, 'markup' => 59.09, 'stock' => 60],
-            ['barcode' => '3000046', 'name' => 'Deodorant Roll-on 40ml',  'capital' => 48.00, 'markup' => 35.42, 'stock' => 40],
-            ['barcode' => '3000047', 'name' => 'Feminine Pads (pack)',    'capital' => 48.00, 'markup' => 35.42, 'stock' => 40],
-            ['barcode' => '3000048', 'name' => 'Rubbing Alcohol 500ml',   'capital' => 55.00, 'markup' => 27.27, 'stock' => 30],
-            ['barcode' => '3000049', 'name' => 'Face Mask (per piece)',   'capital' => 5.00,  'markup' => 100.0, 'stock' => 100],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'Personal Care']));
-        }
-
-        // ══════════════════════════════════════════════════════════
-        // SCHOOL SUPPLIES
-        // ══════════════════════════════════════════════════════════
-        foreach ([
-            ['barcode' => '3000050', 'name' => 'Ballpen (black)',         'capital' => 8.00,  'markup' => 87.50, 'stock' => 200],
-            ['barcode' => '3000051', 'name' => 'Ballpen (blue)',          'capital' => 8.00,  'markup' => 87.50, 'stock' => 200],
-            ['barcode' => '3000052', 'name' => 'Pencil HB',               'capital' => 5.00,  'markup' => 100.0, 'stock' => 150],
-            ['barcode' => '3000053', 'name' => 'Notebook 50 leaves',      'capital' => 28.00, 'markup' => 42.86, 'stock' => 80],
-            ['barcode' => '3000054', 'name' => 'Intermediate Pad Paper',  'capital' => 20.00, 'markup' => 50.00, 'stock' => 80],
-            ['barcode' => '3000055', 'name' => 'Highlighter',             'capital' => 18.00, 'markup' => 66.67, 'stock' => 60],
-            ['barcode' => '3000056', 'name' => 'Correction Tape',         'capital' => 22.00, 'markup' => 59.09, 'stock' => 60],
-            ['barcode' => '3000057', 'name' => 'Scissors',                'capital' => 28.00, 'markup' => 42.86, 'stock' => 40],
-            ['barcode' => '3000058', 'name' => 'Ruler 30cm',              'capital' => 15.00, 'markup' => 66.67, 'stock' => 40],
-            ['barcode' => '3000059', 'name' => 'Folder (per piece)',      'capital' => 8.00,  'markup' => 87.50, 'stock' => 100],
-            ['barcode' => '3000060', 'name' => 'Glue Stick',              'capital' => 18.00, 'markup' => 66.67, 'stock' => 60],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'School Supplies']));
-        }
-
-        // ══════════════════════════════════════════════════════════
-        // MERCHANDISE — clothing with SIZE VARIANTS
-        // Base product stock = 0; variant stocks carry the real qty.
-        // ══════════════════════════════════════════════════════════
-
-        // T-Shirts
-        foreach ([
-            ['barcode' => '3000070', 'name' => 'Plain T-Shirt (White)', 'capital' => 80.00,  'markup' => 87.50],
-            ['barcode' => '3000071', 'name' => 'Plain T-Shirt (Black)', 'capital' => 80.00,  'markup' => 87.50],
-            ['barcode' => '3000072', 'name' => 'Plain T-Shirt (Navy)',  'capital' => 80.00,  'markup' => 87.50],
-            ['barcode' => '3000073', 'name' => 'Polo Shirt (White)',    'capital' => 120.00, 'markup' => 66.67],
-            ['barcode' => '3000074', 'name' => 'Polo Shirt (Blue)',     'capital' => 120.00, 'markup' => 66.67],
-        ] as $p) {
-            $product = $make(array_merge($p, ['category' => 'Merchandise', 'stock' => 0]));
-            $makeVariants($product, $clothingSizes($p['capital'], $p['markup']));
-        }
-
-        // Shorts
-        foreach ([
-            ['barcode' => '3000075', 'name' => 'Basketball Shorts (Black)', 'capital' => 90.00, 'markup' => 77.78],
-            ['barcode' => '3000076', 'name' => 'Basketball Shorts (Gray)',  'capital' => 90.00, 'markup' => 77.78],
-            ['barcode' => '3000077', 'name' => 'Jogging Shorts',            'capital' => 85.00, 'markup' => 82.35],
-        ] as $p) {
-            $product = $make(array_merge($p, ['category' => 'Merchandise', 'stock' => 0]));
-            $makeVariants($product, $clothingSizes($p['capital'], $p['markup']));
-        }
-
-        // Accessories — no size variants
-        foreach ([
-            ['barcode' => '3000080', 'name' => 'Cap (Snapback)',  'capital' => 80.00,  'markup' => 87.50, 'stock' => 20],
-            ['barcode' => '3000081', 'name' => 'Socks (per pair)','capital' => 28.00,  'markup' => 78.57, 'stock' => 60],
-            ['barcode' => '3000082', 'name' => 'Tote Bag',        'capital' => 55.00,  'markup' => 81.82, 'stock' => 30],
-            ['barcode' => '3000083', 'name' => 'Umbrella',        'capital' => 120.00, 'markup' => 66.67, 'stock' => 15],
-        ] as $p) {
-            $make(array_merge($p, ['category' => 'Merchandise']));
-        }
-
-        $this->command->info("✓ Retail products seeded ({$productCount} products, {$variantCount} variants)");
+        return array_merge(...$attributes);
     }
 }

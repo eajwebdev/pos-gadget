@@ -9,34 +9,23 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-
-            // ── 1. Foundation — no foreign key dependencies ────────
+            // 1. Foundation — no foreign key dependencies
             SupplierSeeder::class,
             CategorySeeder::class,
             ExpenseCategorySeeder::class,
 
-            // ── 2. Branches — depends on suppliers ────────────────
+            // 2. Branches — depends on suppliers
             BranchSeeder::class,
+            WarehouseSeeder::class,
 
-            // ── 3. Users — depends on branches ────────────────────
+            // 3. Users — depends on branches
             UserSeeder::class,
 
-            // ── 4. System settings — global defaults ──────────────
+            // 4. System settings — global defaults
             SystemSettingSeeder::class,
 
-            // ── 5. Dining tables — depends on branches ────────────
-            DiningTableSeeder::class,
-
-            // ── 6. Cafe products — COOP Main Campus (CMC) ─────────
-            //    Ingredients must exist before products (no FK dep,
-            //    but recipes reference both)
-            CafeIngredientSeeder::class,
-            CafeProductSeeder::class,
-            CafeRecipeSeeder::class,
-
-            // ── 7. Retail products — ABC Main Store (ABC1) ────────
+            // 5. Gadget/retail products — serialized phone inventory
             RetailProductSeeder::class,
-
         ]);
     }
 }

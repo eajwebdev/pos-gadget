@@ -10,7 +10,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sales', function (Blueprint $table) {
-            $table->foreignId('customer_id')->nullable()->after('table_order_id')->constrained('customers')->nullOnDelete();
+            $table->foreignId('customer_id')->nullable()->after('cash_session_id')->constrained('customers')->nullOnDelete();
             $table->decimal('amount_paid', 12, 2)->default(0)->after('payment_amount');
             $table->decimal('balance_due', 12, 2)->default(0)->after('amount_paid');
             $table->string('payment_status', 20)->default('paid')->after('balance_due');

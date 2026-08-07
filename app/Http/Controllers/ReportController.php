@@ -6,7 +6,6 @@ use App\Models\DailySummary;
 use App\Models\StockAdjustment;
 use App\Models\Sale;
 use App\Models\Product;
-use App\Models\RecipeIngredient;
 use App\Models\ProductStock;
 use App\Models\Expense;
 use App\Models\Branch;
@@ -260,109 +259,6 @@ class ReportController extends Controller
 
         $pdf->setPaper('a4', 'portrait');
         return $pdf->stream('inventory-report.pdf');
-    }
-
-    // ====================== NEW: INGREDIENT USAGE REPORT (Separate) ======================
-    public function ingredientUsageReport(Request $request)
-    {
-        $branchId = $this->resolvedBranchId($request);
-        $fromDate = $request->from_date;
-        $toDate   = $request->to_date ?: now()->format('Y-m-d');
-
-        $usage = collect();
-
-        if ($fromDate) {
-            $usage = RecipeIngredient::selectRaw('
-                    recipe_ingredients.ingredient_id,
-                    ingredients.name as ingredient_name,
-                    recipe_ingredients.unit,
-                    SUM(recipe_ingredients.quantity * sale_items.quantity) as total_used
-                ')
-                ->join('products as ingredients', 'ingredients.id', '=', 'recipe_ingredients.ingredient_id')
-                ->join('sale_items', 'sale_items.product_id', '=', 'recipe_ingredients.product_id')
-                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                ->whereBetween('sales.created_at', [$fromDate, $toDate . ' 23:59:59'])
-                ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
-                ->groupBy('recipe_ingredients.ingredient_id', 'ingredients.name', 'recipe_ingredients.unit')
-                ->orderByDesc('total_used')
-                ->get();
-
-            // Add breakdown per finished product
-            $usage->each(function ($item) use ($fromDate, $toDate, $branchId) {
-                $item->recipes_used_in = RecipeIngredient::selectRaw('
-                        products.name as product_name,
-                        recipe_ingredients.quantity as quantity_per_unit,
-                        SUM(sale_items.quantity) as total_sold
-                    ')
-                    ->join('products', 'products.id', '=', 'recipe_ingredients.product_id')
-                    ->join('sale_items', 'sale_items.product_id', '=', 'recipe_ingredients.product_id')
-                    ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                    ->where('recipe_ingredients.ingredient_id', $item->ingredient_id)
-                    ->whereBetween('sales.created_at', [$fromDate, $toDate . ' 23:59:59'])
-                    ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
-                    ->groupBy('products.name', 'recipe_ingredients.quantity')
-                    ->get();
-            });
-        }
-
-        return Inertia::render('Reports/IngredientUsageReport', [
-            'usage'    => $usage,
-            'branches' => $this->branchesForSelector(),
-        ]);
-    }
-
-    public function ingredientUsageReportPdf(Request $request)
-    {
-        $branchId = $this->resolvedBranchId($request);
-        $fromDate = $request->from_date;
-        $toDate   = $request->to_date ?: now()->format('Y-m-d');
-
-        $usage = collect();
-
-        if ($fromDate) {
-            $usage = RecipeIngredient::selectRaw('
-                    recipe_ingredients.ingredient_id,
-                    ingredients.name as ingredient_name,
-                    recipe_ingredients.unit,
-                    SUM(recipe_ingredients.quantity * sale_items.quantity) as total_used
-                ')
-                ->join('products as ingredients', 'ingredients.id', '=', 'recipe_ingredients.ingredient_id')
-                ->join('sale_items', 'sale_items.product_id', '=', 'recipe_ingredients.product_id')
-                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                ->whereBetween('sales.created_at', [$fromDate, $toDate . ' 23:59:59'])
-                ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
-                ->groupBy('recipe_ingredients.ingredient_id', 'ingredients.name', 'recipe_ingredients.unit')
-                ->orderByDesc('total_used')
-                ->get();
-
-            $usage->each(function ($item) use ($fromDate, $toDate, $branchId) {
-                $item->recipes_used_in = RecipeIngredient::selectRaw('
-                        products.name as product_name,
-                        recipe_ingredients.quantity as quantity_per_unit,
-                        SUM(sale_items.quantity) as total_sold
-                    ')
-                    ->join('products', 'products.id', '=', 'recipe_ingredients.product_id')
-                    ->join('sale_items', 'sale_items.product_id', '=', 'recipe_ingredients.product_id')
-                    ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                    ->where('recipe_ingredients.ingredient_id', $item->ingredient_id)
-                    ->whereBetween('sales.created_at', [$fromDate, $toDate . ' 23:59:59'])
-                    ->when($branchId, fn($q) => $q->where('sales.branch_id', $branchId))
-                    ->groupBy('products.name', 'recipe_ingredients.quantity')
-                    ->get();
-            });
-        }
-
-        $branch = $branchId ? Branch::select('id', 'name')->find($branchId) : null;
-
-        $pdf = Pdf::loadView('pdf.reports.ingredient-usage', [
-            'usage'    => $usage,
-            'fromDate' => $fromDate,
-            'toDate'   => $toDate,
-            'branch'   => $branch,
-        ] + $this->reportBranding($branchId));
-
-        $pdf->setPaper('a4', 'portrait');
-        return $pdf->stream('ingredient-usage-report.pdf');
     }
 
     // ====================== EXPENSES REPORT ======================

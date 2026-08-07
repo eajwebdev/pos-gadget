@@ -9,6 +9,7 @@ import {
     AlertTriangle, Eye, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import SearchableProductSelect from '@/components/SearchableProductSelect';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,9 +201,9 @@ const sel = inp;
 // ─── Debounce hook ────────────────────────────────────────────────────────────
 
 function useDebounce(fn: (...args: any[]) => void, delay: number) {
-    const timer = useRef<ReturnType<typeof setTimeout>>();
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     return useCallback((...args: any[]) => {
-        clearTimeout(timer.current);
+        if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => fn(...args), delay);
     }, [fn, delay]);
 }
@@ -1044,10 +1045,11 @@ function VariantsTab({ variantProducts, allProducts }: { variantProducts: Varian
         <form onSubmit={handleSubmit} className="space-y-4">
             {!editVariant && (
                 <Field label="Product" error={errors.product_id}>
-                    <select className={sel} value={data.product_id} onChange={e => setData('product_id', e.target.value)}>
-                        <option value="">Select product…</option>
-                        {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <SearchableProductSelect
+                        products={allProducts}
+                        value={data.product_id}
+                        onChange={value => setData('product_id', value)}
+                    />
                 </Field>
             )}
             <div className="grid grid-cols-2 gap-3">
@@ -1506,12 +1508,12 @@ function BundlesTab({ bundleProducts, allProducts, branches, isAdmin }: {
                     {/* Product selector only when creating new */}
                     {!configFor?.bundle && (
                         <Field label="Bundle Product" error={bErr.product_id}>
-                            <select className={inp} value={bData.product_id} onChange={e => setBData('product_id', e.target.value)}>
-                                <option value="">Select…</option>
-                                {bundleProducts.filter(bp => !bp.bundle).map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
+                            <SearchableProductSelect
+                                products={bundleProducts.filter(bp => !bp.bundle)}
+                                value={bData.product_id}
+                                onChange={value => setBData('product_id', value)}
+                                placeholder="Select bundle product…"
+                            />
                         </Field>
                     )}
 
@@ -1586,13 +1588,11 @@ function BundlesTab({ bundleProducts, allProducts, branches, isAdmin }: {
                    title={`Add Product — ${addItemFor?.name}`} size="sm">
                 <form onSubmit={handleAddItem} className="space-y-4">
                     <Field label="Product" error={iErr.component_product_id}>
-                        <select className={inp} value={iData.component_product_id}
-                            onChange={e => setIData('component_product_id', e.target.value)}>
-                            <option value="">Select product…</option>
-                            {allProducts
-                                .filter(p => p.id !== addItemFor?.id && p.product_type !== 'bundle')
-                                .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
+                        <SearchableProductSelect
+                            products={allProducts.filter(p => p.id !== addItemFor?.id && p.product_type !== 'bundle')}
+                            value={iData.component_product_id}
+                            onChange={value => setIData('component_product_id', value)}
+                        />
                     </Field>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1751,10 +1751,13 @@ function RecipesTab({ recipeProducts, allProducts }: { recipeProducts: RecipePro
             <Modal open={addModal} onClose={() => setAddModal(false)} title={`Add Ingredient — ${selected?.name}`} size="sm">
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Field label="Ingredient (Standard Product)" error={errors.ingredient_id}>
-                        <select className={sel} value={data.ingredient_id} onChange={e => setData('ingredient_id', e.target.value)}>
-                            <option value="">Select ingredient…</option>
-                            {ingredients.filter(p => p.id !== selected?.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
+                        <SearchableProductSelect
+                            products={ingredients.filter(p => p.id !== selected?.id)}
+                            value={data.ingredient_id}
+                            onChange={value => setData('ingredient_id', value)}
+                            placeholder="Select ingredient…"
+                            searchPlaceholder="Search ingredient product…"
+                        />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
                         <Field label="Quantity" error={errors.quantity}><input type="number" step="0.0001" min="0" className={inp} value={data.quantity} onChange={e => setData('quantity', e.target.value)} placeholder="e.g. 18" /></Field>
@@ -1908,7 +1911,6 @@ const TABS = [
     { key: 'categories', label: 'Categories',   icon: Tag },
     { key: 'variants',   label: 'Variants',     icon: Layers },
     { key: 'bundles',    label: 'Bundles',       icon: GitMerge },
-    { key: 'recipes',    label: 'Recipes / BOM', icon: ChefHat },
     { key: 'stock',      label: 'Stock Mgmt',    icon: Boxes },
 ];
 
@@ -1917,13 +1919,13 @@ const TABS = [
 export default function ProductsIndex() {
     const {
         products, pagination, filters, stats,
-        variantProducts, bundleProducts, recipeProducts,
+        variantProducts, bundleProducts,
         stockRows, stockPagination, stockFilters,
         categories, branches, allProductsForSelect,
         isAdmin, flash, tab: initialTab,
     } = usePage<PageProps>().props;
 
-    const [activeTab, setActiveTab] = useState(initialTab ?? 'products');
+    const [activeTab, setActiveTab] = useState(initialTab === 'recipes' ? 'products' : (initialTab ?? 'products'));
     const [toast, setToast]         = useState<{ type: string; text: string } | null>(flash?.message ?? null);
 
     const tabCount = (key: string) => {
@@ -1931,7 +1933,6 @@ export default function ProductsIndex() {
         if (key === 'categories') return categories.length;
         if (key === 'variants')   return variantProducts.length;
         if (key === 'bundles')    return bundleProducts.length;
-        if (key === 'recipes')    return recipeProducts.length;
         if (key === 'stock')      return stockPagination.total;
         return null;
     };
@@ -1980,7 +1981,6 @@ export default function ProductsIndex() {
                 {activeTab === 'categories' && <CategoriesTab categories={categories} />}
                 {activeTab === 'variants'   && <VariantsTab variantProducts={variantProducts} allProducts={allProductsForSelect} />}
                 {activeTab === 'bundles'    && <BundlesTab bundleProducts={bundleProducts} allProducts={allProductsForSelect} branches={branches} isAdmin={isAdmin} />}
-                {activeTab === 'recipes'    && <RecipesTab recipeProducts={recipeProducts} allProducts={allProductsForSelect} />}
                 {activeTab === 'stock'      && <StockManagementTab stockRows={stockRows} stockPagination={stockPagination} stockFilters={stockFilters} branches={branches} isAdmin={isAdmin} />}
 
             </div>

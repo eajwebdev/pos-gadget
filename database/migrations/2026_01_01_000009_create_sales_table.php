@@ -28,7 +28,6 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('branch_id')->constrained('branches')->cascadeOnDelete();
             $table->foreignId('cash_session_id')->nullable()->constrained('cash_sessions')->nullOnDelete();
-            $table->unsignedBigInteger('table_order_id')->nullable(); // FK added in migration 031
             $table->decimal('total', 12, 2)->default(0.00);
             $table->string('payment_method', 30)->default('cash'); // cash|gcash|card|others
             $table->decimal('payment_amount', 12, 2)->default(0.00);
@@ -41,7 +40,6 @@ return new class extends Migration
 
             $table->index(['branch_id', 'status']);
             $table->index('cash_session_id');
-            $table->index('table_order_id');
             $table->index('created_at');
         });
     }

@@ -19,22 +19,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // ── 1. Cross FKs between sales and table_orders ─────────────────────
-        Schema::table('sales', function (Blueprint $table) {
-            $table->foreign('table_order_id')
-                  ->references('id')
-                  ->on('table_orders')
-                  ->nullOnDelete();
-        });
-
-        Schema::table('table_orders', function (Blueprint $table) {
-            $table->foreign('sale_id')
-                  ->references('id')
-                  ->on('sales')
-                  ->nullOnDelete();
-        });
-
-        // ── 2. sale_items FKs ───────────────────────────────────────────────
+        // ── 1. sale_items FKs ───────────────────────────────────────────────
         Schema::table('sale_items', function (Blueprint $table) {
             $table->foreign('product_variant_id')
                   ->references('id')
@@ -73,14 +58,6 @@ return new class extends Migration
         Schema::table('sale_items', function (Blueprint $table) {
             $table->dropForeign(['product_variant_id']);
             $table->dropForeign(['bundle_sale_item_id']);
-        });
-
-        Schema::table('table_orders', function (Blueprint $table) {
-            $table->dropForeign(['sale_id']);
-        });
-
-        Schema::table('sales', function (Blueprint $table) {
-            $table->dropForeign(['table_order_id']);
         });
 
         Schema::table('sessions', function (Blueprint $table) {

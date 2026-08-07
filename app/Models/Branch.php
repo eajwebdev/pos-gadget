@@ -12,40 +12,62 @@ class Branch extends Model
     use HasFactory;
 
     // ── Business type constants ────────────────────────────────────
-    const TYPE_RETAIL      = 'retail';
-    const TYPE_CAFE        = 'cafe';
-    const TYPE_RESTAURANT  = 'restaurant';
-    const TYPE_FOOD_STALL  = 'food_stall';
-    const TYPE_BAR         = 'bar';
-    const TYPE_BAKERY      = 'bakery';
-    const TYPE_PHARMACY    = 'pharmacy';
-    const TYPE_SALON       = 'salon';
-    const TYPE_LAUNDRY     = 'laundry';
-    const TYPE_HARDWARE    = 'hardware';
-    const TYPE_SCHOOL      = 'school';
-    const TYPE_WAREHOUSE   = 'warehouse';
-    const TYPE_MIXED       = 'mixed';
+    const TYPE_STORE          = 'store';
+    const TYPE_SERVICE_CENTER = 'service_center';
+    const TYPE_WAREHOUSE      = 'warehouse';
+
+    // Backward-compatible constants for older code/tests/data.
+    const TYPE_GADGET_STORE      = self::TYPE_STORE;
+    const TYPE_PHONE_STORE       = 'phone_store';
+    const TYPE_TABLET_STORE      = 'tablet_store';
+    const TYPE_LAPTOP_STORE      = 'laptop_store';
+    const TYPE_ACCESSORIES_STORE = 'accessories_store';
+    const TYPE_REPAIR_SERVICE    = self::TYPE_SERVICE_CENTER;
+    const TYPE_RETAIL     = self::TYPE_STORE;
+    const TYPE_CAFE       = 'cafe';
+    const TYPE_RESTAURANT = 'restaurant';
+    const TYPE_FOOD_STALL = 'food_stall';
+    const TYPE_BAR        = 'bar';
+    const TYPE_BAKERY     = 'bakery';
+    const TYPE_PHARMACY   = 'pharmacy';
+    const TYPE_SALON      = 'salon';
+    const TYPE_LAUNDRY    = 'laundry';
+    const TYPE_HARDWARE   = 'hardware';
+    const TYPE_SCHOOL     = 'school';
+    const TYPE_MIXED      = 'mixed';
 
     public static function businessTypes(): array
     {
         return [
             // ── Food & Beverage ───────────────────────────────────────
-            self::TYPE_CAFE        => 'Cafe / Milk Tea / Juice Bar',
-            self::TYPE_RESTAURANT  => 'Restaurant / Canteen (Dine-in)',
-            self::TYPE_FOOD_STALL  => 'Food Stall / Carinderia / Turo-turo',
-            self::TYPE_BAKERY      => 'Bakery / Pastry / Dessert Shop',
-            self::TYPE_BAR         => 'Bar / Pub / Nightlife',
+            self::TYPE_STORE          => 'Store / Retail Branch',
+            self::TYPE_SERVICE_CENTER => 'Service / Repair Center',
             // ── Retail & Services ─────────────────────────────────────
-            self::TYPE_RETAIL      => 'Retail / Grocery / Sari-sari',
-            self::TYPE_PHARMACY    => 'Pharmacy / Drugstore',
-            self::TYPE_HARDWARE    => 'Hardware / Construction Supply',
-            self::TYPE_SALON       => 'Salon / Spa / Personal Care',
-            self::TYPE_LAUNDRY     => 'Laundry / Dry Cleaning',
             // ── Other ─────────────────────────────────────────────────
-            self::TYPE_SCHOOL      => 'School / Tutorial / Training Center',
-            self::TYPE_WAREHOUSE   => 'Warehouse / Distribution Center',
-            self::TYPE_MIXED       => 'Mixed (All features enabled)',
         ];
+    }
+
+    public static function normalizeBusinessType(?string $type): string
+    {
+        $type = trim((string) $type);
+
+        if ($type === '') {
+            return self::TYPE_STORE;
+        }
+
+        if (array_key_exists($type, self::businessTypes())) {
+            return $type;
+        }
+
+        return match ($type) {
+            'gadget_store', 'phone_store', 'tablet_store', 'laptop_store', 'accessories_store', 'warehouse',
+            'retail', 'grocery', 'sari_sari', self::TYPE_CAFE, self::TYPE_RESTAURANT,
+            self::TYPE_FOOD_STALL, self::TYPE_BAR, self::TYPE_BAKERY, self::TYPE_PHARMACY,
+            self::TYPE_SALON, self::TYPE_LAUNDRY, self::TYPE_HARDWARE, self::TYPE_SCHOOL,
+            self::TYPE_MIXED => self::TYPE_STORE,
+            'repair_service' => self::TYPE_SERVICE_CENTER,
+            default => self::TYPE_STORE,
+        };
     }
 
     /**
@@ -54,104 +76,27 @@ class Branch extends Model
      */
     public static function defaultFlagsFor(string $type): array
     {
-        return match ($type) {
-            self::TYPE_RETAIL => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => true,
-                'use_recipe_system'   => false,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_CAFE => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => true,
-                'use_bundles'         => false,
-            ],
-            self::TYPE_RESTAURANT => [
-                'use_table_ordering'  => true,
-                'use_variants'        => false,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => true,
-                'use_bundles'         => false,
-            ],
-            self::TYPE_FOOD_STALL => [
-                'use_table_ordering'  => false,
-                'use_variants'        => false,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => true,
-                'use_bundles'         => false,
-            ],
-            self::TYPE_BAR => [
-                'use_table_ordering'  => true,
-                'use_variants'        => true,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => true,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_BAKERY => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => true,
-                'use_recipe_system'   => true,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_PHARMACY => [
-                'use_table_ordering'  => false,
-                'use_variants'        => false,
-                'use_expiry_tracking' => true,
-                'use_recipe_system'   => false,
-                'use_bundles'         => false,
-            ],
-            self::TYPE_SALON => [
+        return match (static::normalizeBusinessType($type)) {
+            self::TYPE_STORE => [
                 'use_table_ordering'  => false,
                 'use_variants'        => true,
                 'use_expiry_tracking' => false,
                 'use_recipe_system'   => false,
                 'use_bundles'         => true,
             ],
-            self::TYPE_LAUNDRY => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => false,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_HARDWARE => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => false,
-                'use_recipe_system'   => false,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_SCHOOL => [
+            self::TYPE_SERVICE_CENTER => [
                 'use_table_ordering'  => false,
                 'use_variants'        => false,
                 'use_expiry_tracking' => false,
                 'use_recipe_system'   => false,
-                'use_bundles'         => true,
-            ],
-            self::TYPE_WAREHOUSE => [
-                'use_table_ordering'  => false,
-                'use_variants'        => true,
-                'use_expiry_tracking' => true,
-                'use_recipe_system'   => false,
-                'use_bundles'         => false,
-            ],
-            self::TYPE_MIXED => [
-                'use_table_ordering'  => true,
-                'use_variants'        => true,
-                'use_expiry_tracking' => true,
-                'use_recipe_system'   => true,
                 'use_bundles'         => true,
             ],
             default => [
                 'use_table_ordering'  => false,
-                'use_variants'        => false,
+                'use_variants'        => true,
                 'use_expiry_tracking' => false,
                 'use_recipe_system'   => false,
-                'use_bundles'         => false,
+                'use_bundles'         => true,
             ],
         };
     }
@@ -182,7 +127,7 @@ class Branch extends Model
     ];
 
     protected $attributes = [
-        'business_type'       => self::TYPE_RETAIL,
+        'business_type'       => self::TYPE_STORE,
         'use_table_ordering'  => false,
         'use_variants'        => false,
         'use_expiry_tracking' => false,
@@ -195,6 +140,8 @@ class Branch extends Model
     protected static function booted(): void
     {
         static::saving(function (Branch $branch) {
+            $branch->business_type = static::normalizeBusinessType($branch->business_type);
+
             if ($branch->isDirty('business_type')) {
                 $defaults = static::defaultFlagsFor($branch->business_type);
                 foreach ($defaults as $flag => $value) {
@@ -208,23 +155,25 @@ class Branch extends Model
 
     // ── Business Type Helpers ──────────────────────────────────────
 
-    public function isRetail(): bool     { return $this->business_type === self::TYPE_RETAIL; }
-    public function isCafe(): bool       { return $this->business_type === self::TYPE_CAFE; }
-    public function isRestaurant(): bool { return $this->business_type === self::TYPE_RESTAURANT; }
-    public function isFoodStall(): bool  { return $this->business_type === self::TYPE_FOOD_STALL; }
-    public function isBar(): bool        { return $this->business_type === self::TYPE_BAR; }
-    public function isBakery(): bool     { return $this->business_type === self::TYPE_BAKERY; }
-    public function isPharmacy(): bool   { return $this->business_type === self::TYPE_PHARMACY; }
-    public function isSalon(): bool      { return $this->business_type === self::TYPE_SALON; }
-    public function isLaundry(): bool    { return $this->business_type === self::TYPE_LAUNDRY; }
-    public function isHardware(): bool   { return $this->business_type === self::TYPE_HARDWARE; }
-    public function isSchool(): bool     { return $this->business_type === self::TYPE_SCHOOL; }
-    public function isWarehouse(): bool  { return $this->business_type === self::TYPE_WAREHOUSE; }
-    public function isMixed(): bool      { return $this->business_type === self::TYPE_MIXED; }
+    public function isRetail(): bool     { return static::normalizeBusinessType($this->business_type) === self::TYPE_STORE; }
+    public function isCafe(): bool       { return false; }
+    public function isRestaurant(): bool { return false; }
+    public function isFoodStall(): bool  { return false; }
+    public function isBar(): bool        { return false; }
+    public function isBakery(): bool     { return false; }
+    public function isPharmacy(): bool   { return false; }
+    public function isSalon(): bool      { return false; }
+    public function isLaundry(): bool    { return false; }
+    public function isHardware(): bool   { return false; }
+    public function isSchool(): bool     { return false; }
+    public function isWarehouse(): bool  { return false; }
+    public function isMixed(): bool      { return static::normalizeBusinessType($this->business_type) === self::TYPE_STORE; }
 
     public function getBusinessTypeLabelAttribute(): string
     {
-        return static::businessTypes()[$this->business_type] ?? ucfirst($this->business_type);
+        $type = static::normalizeBusinessType($this->business_type);
+
+        return static::businessTypes()[$type] ?? ucfirst(str_replace('_', ' ', $type));
     }
 
     // ── Feature Flag Helpers ───────────────────────────────────────

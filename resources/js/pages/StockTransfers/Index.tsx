@@ -6,6 +6,7 @@ import { routes } from "@/routes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import SearchableProductSelect from "@/components/SearchableProductSelect";
 import { ArrowLeftRight, Plus, CheckCircle2, XCircle, Clock, Warehouse, Building2, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -157,10 +158,12 @@ function CreateTransferModal({ open, onClose, branches, warehouses, products }: 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Product</label>
-                            <select className={sel} value={productId} onChange={e => setProductId(e.target.value)}>
-                                <option value="">Select product…</option>
-                                {products.map(p => <option key={p.id} value={p.id}>{p.name}{p.barcode ? ` (${p.barcode})` : ''}</option>)}
-                            </select>
+                            <SearchableProductSelect
+                                products={products}
+                                value={productId}
+                                onChange={setProductId}
+                                className="h-9"
+                            />
                             {errors.product_id && <p className="text-red-400 text-xs mt-1">{errors.product_id}</p>}
                         </div>
                         <div>

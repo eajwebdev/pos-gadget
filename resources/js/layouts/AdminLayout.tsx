@@ -1,50 +1,19 @@
 "use client";
 
-import { ReactNode } from "react";
 import { Link, Head, router, usePage } from "@inertiajs/react";
 
-import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-    SidebarProvider,
-    SidebarRail,
-    SidebarTrigger,
-} from "@/components/ui/sidebar";
 
-import {
-    Avatar,
-    AvatarFallback,
-} from "@/components/ui/avatar";
 
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
-import { Button } from "@/components/ui/button";
 
 import {
     LayoutDashboard,
     ShoppingCart,
     History,
-    TableProperties,
-    ShoppingBag,
     Package,
     Tag,
     Layers,
     GitMerge,
-    ChefHat,
     Boxes,
     ClipboardList,
     PackageCheck,
@@ -61,7 +30,6 @@ import {
     Users,
     Truck,
     Building2,
-    Armchair,
     FolderOpen,
     Settings,
     LogOut,
@@ -76,18 +44,48 @@ import {
     ClipboardCheck,
     BookImage,
     Wrench,
+    Smartphone,
+    ShieldCheck,
 } from "lucide-react";
 
+
+import { useTheme } from "next-themes";
+import type { ReactNode } from "react";
+import FloatingChat from "@/components/FloatingChat";
+import {
+    Avatar,
+    AvatarFallback,
+} from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-
-import { routes } from "@/routes";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarProvider,
+    SidebarRail,
+    SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
-import FloatingChat from "@/components/FloatingChat";
+import { routes } from "@/routes";
 import CashierLayout from "./CashierLayout";
 
 interface AdminLayoutProps {
@@ -99,13 +97,11 @@ const MENU = {
     DASHBOARD:          "1",
     POS:                "2",
     SALES_HISTORY:      "3",
-    TABLE_ORDERS:       "4",
     SHOP_ORDERS:        "5",
     PRODUCTS:           "6",
     CATEGORIES:         "7",
     VARIANTS:           "8",
     BUNDLES:            "9",
-    RECIPES:            "10",
     STOCK:              "11",
     PURCHASE_ORDERS:    "12",
     GRN:                "13",
@@ -117,12 +113,10 @@ const MENU = {
     SALES_REPORT:       "19",
     INVENTORY_REPORT:   "20",
     EXPENSE_REPORT:           "21",
-    INGREDIENT_USAGE_REPORT:  "30",
     ACTIVITY_LOGS:            "22",
     USERS:              "23",
     SUPPLIERS:          "24",
     BRANCHES:           "25",
-    DINING_TABLES:      "26",
     EXPENSE_CATEGORIES: "27",
     SYSTEM_SETTINGS:    "28",
     PROMOS:             "29",
@@ -135,6 +129,8 @@ const MENU = {
     BROCHURE:           "37",
     SERVICES:           "38",
     CUSTOMERS:          "39",
+    DEVICE_UNITS:       "40",
+    DEVICE_SERVICES:    "41",
 } as const;
 
 // ─── Sidebar section header ───────────────────────────────────────────────────
@@ -280,13 +276,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     };
 
     // Inventory group active if any sub-path is active
-    const inventoryActive = ["/products", "/categories", "/variants", "/bundles", "/recipes", "/stock", "/purchase-orders", "/grn", "/stock-adjustments", "/inventory", "/stock-transfers", "/warehouses"].some(isActive);
+    const inventoryActive = ["/products", "/categories", "/variants", "/bundles", "/stock", "/purchase-orders", "/grn", "/stock-adjustments", "/inventory", "/stock-transfers", "/warehouses"].some(isActive);
     // Cash group active
     const cashActive = ["/cash-sessions", "/cash-counts", "/petty-cash", "/expenses"].some(isActive);
     // Reports group active
     const reportsActive = ["/reports", "/logs", "/stock-adjustments"].some(isActive);
     // Management group active
-    const managementActive = ["/users", "/suppliers", "/branches", "/dining-tables", "/settings"].some(isActive);
+    const managementActive = ["/users", "/suppliers", "/branches", "/settings"].some(isActive);
 
     return (
         <SidebarProvider defaultOpen>
@@ -341,7 +337,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                     )}
 
                                     {/* ── SALES ─────────────────────────── */}
-                                    {(has(MENU.POS) || has(MENU.SALES_HISTORY) || has(MENU.TABLE_ORDERS) || has(MENU.SHOP_ORDERS) || has(MENU.PROMOS) || has(MENU.INSTALLMENTS) || has(MENU.CUSTOMERS)) && (
+                                    {(has(MENU.POS) || has(MENU.SALES_HISTORY) || has(MENU.SHOP_ORDERS) || has(MENU.PROMOS) || has(MENU.INSTALLMENTS) || has(MENU.CUSTOMERS)) && (
                                         <>
                                             <SidebarSectionLabel label="Sales" />
 
@@ -351,12 +347,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                             {has(MENU.SALES_HISTORY) && (
                                                 <NavItem href="/sales/history" icon={History} label="Sales History" active={isActive("/sales/history")} />
                                             )}
-                                            {/* {has(MENU.TABLE_ORDERS) && (
-                                                <NavItem href="/table-orders" icon={TableProperties} label="Table Orders" active={isActive("/table-orders")} />
-                                            )}
-                                            {has(MENU.SHOP_ORDERS) && (
-                                                <NavItem href="/shop/orders" icon={ShoppingBag} label="Shop Orders" active={isActive("/shop/orders")} />
-                                            )} */}
                                             {has(MENU.PROMOS) && (
                                                 <NavItem href="/promos" icon={Tag} label="Promos & Discounts" active={isActive("/promos")} />
                                             )}
@@ -365,6 +355,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                             )}
                                             {has(MENU.CUSTOMERS) && (
                                                 <NavItem href="/customers" icon={Users} label="Customers" active={isActive("/customers")} />
+                                            )}
+                                            {has(MENU.DEVICE_SERVICES) && (
+                                                <NavItem href="/device-services" icon={ShieldCheck} label="Warranty & Repairs" active={isActive("/device-services")} />
                                             )}
                                         </>
                                     )}
@@ -375,6 +368,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                             <SidebarSectionLabel label="Inventory" />
                                             {has(MENU.INVENTORY) && (
                                                 <NavItem href="/inventory" icon={LayoutList} label="Inventory" active={isActive("/inventory")} />
+                                            )}
+                                            {has(MENU.DEVICE_UNITS) && (
+                                                <NavItem href="/device-units" icon={Smartphone} label="Device Units" active={isActive("/device-units")} />
                                             )}
                                             {has(MENU.STOCK_COUNT) && (
                                                 <NavItem href="/stock-count" icon={ClipboardCheck} label="Stock Count" active={isActive("/stock-count")} />
@@ -441,7 +437,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                     )}
 
                                     {/* ── REPORTS ───────────────────────── */}
-                                    {(has(MENU.DAILY_SUMMARY) || has(MENU.SALES_REPORT) || has(MENU.INVENTORY_REPORT) || has(MENU.EXPENSE_REPORT) || has(MENU.INGREDIENT_USAGE_REPORT) || has(MENU.ACTIVITY_LOGS)) && (
+                                    {(has(MENU.DAILY_SUMMARY) || has(MENU.SALES_REPORT) || has(MENU.INVENTORY_REPORT) || has(MENU.EXPENSE_REPORT) || has(MENU.ACTIVITY_LOGS)) && (
                                         <>
                                             <SidebarSectionLabel label="Reports" />
 
@@ -458,9 +454,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                                 {has(MENU.EXPENSE_REPORT) && (
                                                     <SubLink href="/reports/expenses" label="Expense Report" active={isActive("/reports/expenses")} />
                                                 )}
-                                                {has(MENU.INGREDIENT_USAGE_REPORT) && (
-                                                    <SubLink href="/reports/ingredient-usage" label="Ingredient Usage" active={isActive("/reports/ingredient-usage")} />
-                                                )}
                                                 {has(MENU.STOCK_ADJUSTMENTS) && (
                                                     <SubLink href="/reports/stock-loss" label="Stock Loss Report" active={isActive("/reports/stock-loss")} />
                                                 )}
@@ -473,7 +466,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                     )}
 
                                     {/* ── MANAGEMENT ────────────────────── */}
-                                    {(has(MENU.USERS) || has(MENU.SUPPLIERS) || has(MENU.BRANCHES) || has(MENU.DINING_TABLES) || has(MENU.EXPENSE_CATEGORIES) || has(MENU.SYSTEM_SETTINGS)) && (
+                                    {(has(MENU.USERS) || has(MENU.SUPPLIERS) || has(MENU.BRANCHES) || has(MENU.EXPENSE_CATEGORIES) || has(MENU.SYSTEM_SETTINGS)) && (
                                         <>
                                             <SidebarSectionLabel label="Management" />
 
@@ -485,9 +478,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                             )}
                                             {has(MENU.BRANCHES) && (
                                                 <NavItem href="/branches" icon={Building2} label="Branches" active={isActive("/branches")} />
-                                            )}
-                                            {has(MENU.DINING_TABLES) && (
-                                                <NavItem href="/dining-tables" icon={Armchair} label="Dining Tables" active={isActive("/dining-tables")} />
                                             )}
                                             {has(MENU.EXPENSE_CATEGORIES) && (
                                                 <NavItem href="/expense-categories" icon={FolderOpen} label="Expense Categories" active={isActive("/expense-categories")} />

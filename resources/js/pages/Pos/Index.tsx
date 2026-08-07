@@ -1,22 +1,24 @@
 "use client";
-import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePage, router } from "@inertiajs/react";
-import AdminLayout from "@/layouts/AdminLayout";
-import ReceiptTemplate, { fmtMoney, ReceiptData } from "./ReceiptTemplate";
-import { routes } from "@/routes";
-import { cn } from "@/lib/utils";
 import {
     Search, X, Plus, Minus, Trash2, ShoppingCart, Tag,
     CreditCard, Banknote, Smartphone, CheckCircle2,
-    AlertTriangle, Package, History, ScanLine,
+    AlertTriangle, History, ScanLine,
     RefreshCw, Zap, User, ChevronDown, Wallet, CalendarClock,
 } from "lucide-react";
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import type { Product, CartItem, Category, TableOrder, DiningTable, ActivePromo, CustomerOption } from "./posTypes";
+import AdminLayout from "@/layouts/AdminLayout";
+import { cn } from "@/lib/utils";
+import { routes } from "@/routes";
+import type { Product, CartItem, Category, TableOrder, DiningTable, ActivePromo, CustomerOption, SerializedUnit } from "./posTypes";
+import ReceiptTemplate, { fmtMoney } from "./ReceiptTemplate";
+import type { ReceiptData } from "./ReceiptTemplate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Session  { id: number; opening_cash: number; opened_at: string; status: string; }
 interface Branch   { id: number; name: string; business_type: string; feature_flags: Record<string, boolean>; }
+interface PosResult { receipt_number: string; total: number; change?: number; discount_amount?: number; promo_discount?: number; promo_name?: string | null; service_charge_amount?: number; installment_plan_id?: number | null; amount_paid?: number; balance_due?: number; payment_status?: string; due_date?: string | null; customer_name?: string | null; }
 interface PageProps {
     auth: { user: { fname: string; lname: string; role_label: string; is_cashier: boolean } | null };
     settings: {
@@ -762,6 +764,7 @@ function CartPanel({ cart, subtotal, itemCount, currency, error, onUpdateQty, on
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-foreground leading-snug break-words">{item.name}</p>
                                     {item.variant_name && <p className="text-[10px] text-muted-foreground mt-0.5">{item.variant_name}</p>}
+                                    {item.device_identifier && <p className="mt-0.5 font-mono text-[10px] text-amber-500">IMEI/SN: {item.device_identifier}</p>}
                                     <p className="text-xs font-bold text-primary tabular-nums mt-0.5">{fmtMoney(item.price, currency)}</p>
                                 </div>
                                 <div className="shrink-0 flex flex-col items-end gap-1 pt-0.5">
@@ -814,6 +817,43 @@ function CartPanel({ cart, subtotal, itemCount, currency, error, onUpdateQty, on
 }
 
 // ─── Main POS component ───────────────────────────────────────────────────────
+function UnitPicker({ product, onSelect, onClose }: { product: Product; onSelect: (unit: SerializedUnit) => void; onClose: () => void }) {
+    const [query, setQuery] = useState("");
+    const availableUnits = product.serialized_units ?? [];
+    const units = availableUnits.filter(unit =>
+        `${unit.imei ?? ""} ${unit.imei_2 ?? ""} ${unit.serial_number ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())
+    );
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
+            <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl" onMouseDown={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-border p-4">
+                    <div><p className="font-bold">Select exact device</p><p className="text-xs text-muted-foreground">{product.name} · {availableUnits.length} available</p></div>
+                    <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+                </div>
+                <div className="p-4">
+                    <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Scan or search IMEI / serial number"
+                        className="mb-3 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <div className="max-h-80 space-y-2 overflow-y-auto">
+                        {units.map(unit => (
+                            <button key={unit.id} onClick={() => onSelect(unit)} className="w-full rounded-xl border border-border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5">
+                                <p className="font-mono text-sm font-bold text-foreground">{unit.identifier}</p>
+                                <div className="mt-1 flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
+                                    {unit.imei && <span>IMEI 1: {unit.imei}</span>}
+                                    {unit.imei_2 && <span>IMEI 2: {unit.imei_2}</span>}
+                                    {unit.serial_number && <span>Serial: {unit.serial_number}</span>}
+                                    <span>{unit.warranty_months} month warranty</span>
+                                </div>
+                            </button>
+                        ))}
+                        {units.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No matching available unit.</p>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function PosIndex() {
     const { props }   = usePage<PageProps>();
     const { products, customers = [], categories, session, branch, settings, app, open_table_orders, dining_tables } = props;
@@ -831,6 +871,7 @@ export default function PosIndex() {
     const [loading,            setLoading]            = useState(false);
     const [error,              setError]              = useState<string | null>(null);
     const [variantFor,         setVariantFor]         = useState<Product | null>(null);
+    const [unitFor,            setUnitFor]            = useState<Product | null>(null);
     const [activeTableOrderId, setActiveTableOrderId] = useState<number | null>(null);
     const [pendingTableId,     setPendingTableId]     = useState<number | null>(null);
 
@@ -867,7 +908,7 @@ export default function PosIndex() {
         if (activeCat)      list = list.filter(p => p.category?.id === activeCat);
         if (search.trim()) {
             const q = search.toLowerCase();
-            list = list.filter(p => p.name.toLowerCase().includes(q) || (p.barcode ?? "").includes(q));
+            list = list.filter(p => p.name.toLowerCase().includes(q) || (p.barcode ?? "").includes(q) || p.serialized_units?.some(u => `${u.imei ?? ""} ${u.imei_2 ?? ""} ${u.serial_number ?? ""}`.toLowerCase().includes(q)));
         }
         return list;
     }, [products, activeCat, search]);
@@ -878,19 +919,21 @@ export default function PosIndex() {
     const laundryMode = settings?.laundry_mode ?? "auto";
     const isLaundryMode = laundryMode === "enabled" || (laundryMode === "auto" && branch?.business_type === "laundry");
     const requireCustomerName = !!settings?.require_customer_name || branch?.business_type === "salon" || isLaundryMode;
+    const sessionRequired = settings?.require_cash_session ?? true;
+    const sessionBlocked = sessionRequired && !session;
 
-    const addItem = useCallback((product: Product, variantId: number | null = null, variantName: string | null = null) => {
+    const addItem = useCallback((product: Product, variantId: number | null = null, variantName: string | null = null, unit: SerializedUnit | null = null) => {
         const extra     = variantId ? (product.variants.find(v => v.id === variantId)?.extra_price ?? 0) : 0;
         const price     = product.price + extra;
-        const key       = `${product.id}-${variantId ?? "base"}`;
-        const stockLim  = (product.product_type === 'bundle' || product.product_type === 'made_to_order') ? 999 : product.stock;
+        const key       = unit ? `${product.id}-unit-${unit.id}` : `${product.id}-${variantId ?? "base"}`;
+        const stockLim  = unit ? 1 : ((product.product_type === 'bundle' || product.product_type === 'made_to_order') ? 999 : product.stock);
         setCart(prev => {
             const ex = prev.find(i => i.key === key);
             if (ex) {
                 if (ex.qty >= stockLim) return prev;
                 return prev.map(i => i.key === key ? { ...i, qty: i.qty + 1 } : i);
             }
-            return [...prev, { key, product_id: product.id, variant_id: variantId, name: product.name, variant_name: variantName, price, qty: 1, stock: stockLim, product_type: product.product_type, bundle_items: product.bundle_items ?? null, recipe_items: product.recipe_items ?? null }];
+            return [...prev, { key, product_id: product.id, variant_id: variantId, name: product.name, variant_name: variantName, price, qty: 1, stock: stockLim, product_type: product.product_type, bundle_items: product.bundle_items ?? null, recipe_items: product.recipe_items ?? null, device_unit_id: unit?.id ?? null, device_identifier: unit?.identifier ?? null }];
         });
     }, []);
 
@@ -898,6 +941,10 @@ export default function PosIndex() {
         if (sessionRequired && !session) return; // blocked — no open session
         const isBundleMTO = p.product_type === 'bundle' || p.product_type === 'made_to_order';
         if (!isBundleMTO && p.stock <= 0) return;
+        if (p.track_serials) {
+            setUnitFor(p);
+            return;
+        }
         if (p.has_variants && p.variants.filter(v => v.is_available).length > 0) {
             setVariantFor(p);
             return;
@@ -905,19 +952,43 @@ export default function PosIndex() {
         addItem(p);
         setSearch("");
         refocus();
-    }, [addItem, refocus]);
+    }, [addItem, refocus, session, sessionRequired]);
+
+    const findSerializedUnitByCode = useCallback((code: string): { product: Product; unit: SerializedUnit } | null => {
+        for (const product of products) {
+            const unit = product.serialized_units?.find(u =>
+                [u.imei, u.imei_2, u.serial_number]
+                    .filter(Boolean)
+                    .some(value => value?.trim() === code)
+            );
+
+            if (unit) return { product, unit };
+        }
+
+        return null;
+    }, [products]);
 
     // Combined search + instant barcode: if the current value exactly matches a barcode, add it
     const handleSearchOrScan = useCallback((value: string) => {
         setSearch(value);
         const code = value.trim();
         if (!code) return;
+
+        const byUnit = findSerializedUnitByCode(code);
+        if (byUnit) {
+            if (sessionRequired && !session) return;
+            addItem(byUnit.product, null, null, byUnit.unit);
+            setSearch("");
+            refocus();
+            return;
+        }
+
         const exact = products.find(p => (p.barcode ?? "").trim() === code);
         if (exact) {
             handleProductClick(exact);
             setSearch("");
         }
-    }, [products, handleProductClick]);
+    }, [addItem, findSerializedUnitByCode, handleProductClick, products, refocus, session, sessionRequired]);
 
     // Enter key: 1) exact barcode match, 2) exact name match, 3) single filtered result
     const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -926,18 +997,28 @@ export default function PosIndex() {
         const code = search.trim();
         if (!code) return;
 
-        // Priority 1: exact barcode
+        // Priority 1: exact IMEI / serial tag scan
+        const byUnit = findSerializedUnitByCode(code);
+        if (byUnit) {
+            if (sessionRequired && !session) return;
+            addItem(byUnit.product, null, null, byUnit.unit);
+            setSearch("");
+            refocus();
+            return;
+        }
+
+        // Priority 2: exact barcode
         const byBarcode = products.find(p => (p.barcode ?? "").trim() === code);
         if (byBarcode) { handleProductClick(byBarcode); setSearch(""); return; }
 
-        // Priority 2: exact product name (case-insensitive)
+        // Priority 3: exact product name (case-insensitive)
         const lower    = code.toLowerCase();
         const byName   = products.find(p => p.name.toLowerCase() === lower);
         if (byName)  { handleProductClick(byName); setSearch(""); return; }
 
-        // Priority 3: only one result in the filtered list → treat as unambiguous
+        // Priority 4: only one result in the filtered list → treat as unambiguous
         if (filtered.length === 1) { handleProductClick(filtered[0]); setSearch(""); }
-    }, [search, products, filtered, handleProductClick]);
+    }, [addItem, filtered, findSerializedUnitByCode, handleProductClick, products, refocus, search, session, sessionRequired]);
 
     const updateQty    = (key: string, delta: number) =>
         setCart(prev => prev.flatMap(i => {
@@ -962,7 +1043,7 @@ export default function PosIndex() {
         if (!cart.length) return;
         setLoading(true); setError(null);
         router.post(routes.pos.store(), {
-            items:            cart.map(i => ({ id: i.product_id, qty: i.qty, variant_id: i.variant_id })),
+            items:            cart.map(i => ({ id: i.product_id, qty: i.qty, variant_id: i.variant_id, device_unit_id: i.device_unit_id })),
             payment_method:   payData.payment_method,
             payment_amount:   payData.payment_amount,
             customer_name:    payData.customer_name || null,
@@ -983,7 +1064,7 @@ export default function PosIndex() {
         }, {
             preserveScroll: true,
             onSuccess: page => {
-                const flash = (page.props as any).flash ?? {};
+                const flash = (page.props as unknown as { flash?: { pos_result?: PosResult; errors?: { error?: string } } }).flash ?? {};
                 if (!flash.pos_result) {
                     setError(flash.errors?.error ?? "Checkout failed — please try again.");
                     setLoading(false);
@@ -1020,7 +1101,7 @@ export default function PosIndex() {
                     branch_name:     branch?.name,
                     table_label:     activeOrder?.label ?? null,
                     business_type:   branch?.business_type,
-                    items:           cart.map(i => ({ product_name: i.name, variant_name: i.variant_name, quantity: i.qty, price: i.price })),
+                    items:           cart.map(i => ({ product_name: i.name, variant_name: i.variant_name, quantity: i.qty, price: i.price, device_identifier: i.device_identifier })),
                 });
                 setShowPayment(false);
                 setActiveTableOrderId(null);
@@ -1054,7 +1135,7 @@ export default function PosIndex() {
                 value={search}
                 onChange={e => handleSearchOrScan(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search or scan barcode… (F2)"
+                placeholder="Search or scan barcode / IMEI / serial… (F2)"
                 className="w-full h-9 pl-9 pr-8 text-sm bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
                 // Suppress browser floating toolbars (Translate / Clipboard / Web Search)
                 // that appear on Android Chrome when text is entered via OTG barcode scanner
@@ -1071,9 +1152,6 @@ export default function PosIndex() {
     );
 
     // ── Session guard ─────────────────────────────────────────────────────────
-    const sessionRequired = settings?.require_cash_session ?? true;
-    const sessionBlocked  = sessionRequired && !session;
-
     // ── No-session overlay — shown on top of any layout ───────────────────────
     const noSessionOverlay = sessionBlocked ? (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
@@ -1116,7 +1194,7 @@ export default function PosIndex() {
                             value={search}
                             onChange={e => handleSearchOrScan(e.target.value)}
                             onKeyDown={handleSearchKeyDown}
-                            placeholder="Search or scan… (F2)"
+                            placeholder="Search or scan barcode / IMEI… (F2)"
                             className="w-full h-10 pl-9 pr-8 text-sm bg-white dark:bg-background border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-muted-foreground shadow-sm"
                             autoComplete="off"
                             autoCorrect="off"
@@ -1143,6 +1221,7 @@ export default function PosIndex() {
                     </Suspense>
                 </div>
 
+                {unitFor && <UnitPicker product={unitFor} onSelect={unit => { addItem(unitFor, null, null, unit); setUnitFor(null); setSearch(""); refocus(50); }} onClose={() => { setUnitFor(null); refocus(50); }} />}
                 {variantFor && (
                     <VariantPicker product={variantFor} currency={currency}
                         onSelect={(vid, vname) => { addItem(variantFor, vid, vname); setVariantFor(null); refocus(50); }}
@@ -1186,6 +1265,7 @@ export default function PosIndex() {
                     </div>
                 </div>
 
+                {unitFor && <UnitPicker product={unitFor} onSelect={unit => { addItem(unitFor, null, null, unit); setUnitFor(null); setSearch(""); refocus(50); }} onClose={() => { setUnitFor(null); refocus(50); }} />}
                 {variantFor && (
                     <VariantPicker product={variantFor} currency={currency}
                         onSelect={(vid, vname) => { addItem(variantFor, vid, vname); setVariantFor(null); refocus(50); }}
@@ -1232,7 +1312,7 @@ export default function PosIndex() {
                     {/* Combined search + barcode */}
                     {searchInput}
                     {/* Category dropdown — hidden for cafe/restaurant/mobile (they have their own navigation) */}
-                    {layout !== "cafe" && layout !== "restaurant" && layout !== "mobile" && (
+                    {layout !== "cafe" && layout !== "restaurant" && (
                         <CategoryDropdown categories={categories} activeCat={activeCat} onChange={setActiveCat} />
                     )}
                     <div className="flex-1" />
@@ -1269,6 +1349,7 @@ export default function PosIndex() {
                 </div>
             </div>
 
+            {unitFor && <UnitPicker product={unitFor} onSelect={unit => { addItem(unitFor, null, null, unit); setUnitFor(null); setSearch(""); refocus(50); }} onClose={() => { setUnitFor(null); refocus(50); }} />}
             {variantFor && (
                 <VariantPicker product={variantFor} currency={currency}
                     onSelect={(vid, vname) => { addItem(variantFor, vid, vname); setVariantFor(null); refocus(50); }}
