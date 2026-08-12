@@ -45,17 +45,16 @@ interface PageProps {
     promos: ActivePromo[];
     [key: string]: unknown;
 }
-type PayMethod   = "cash" | "gcash" | "card" | "others" | "installment" | "credit" | "mixed";
+type PayMethod   = "cash" | "gcash" | "card" | "installment" | "credit" | "mixed";
 type LayoutMode  = "grid" | "tablet" | "grocery" | "restaurant" | "cafe" | "salon" | "kiosk" | "mobile";
 
 const METHODS: { value: PayMethod; label: string; icon: React.ElementType }[] = [
     { value: "cash",        label: "Cash",        icon: Banknote    },
     { value: "gcash",       label: "GCash",       icon: Smartphone  },
     { value: "card",        label: "Card",        icon: CreditCard  },
-    { value: "others",      label: "Others",      icon: Tag         },
+    { value: "installment", label: "Installment", icon: CalendarClock },
     { value: "credit",      label: "Credit",      icon: Wallet      },
     { value: "mixed",       label: "Partial",     icon: Banknote    },
-    { value: "installment", label: "Installment", icon: CalendarClock },
 ];
 
 // ─── Lazy-loaded layout chunks (each downloads only when that layout is used) ─
@@ -165,7 +164,9 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
     onClose: () => void; loading: boolean; serverError?: string | null;
 }) {
     const enableInstallments = settings?.enable_installments ?? false;
-    const defaultMethod = ((settings?.default_payment === "installment" && !enableInstallments) ? "cash" : (settings?.default_payment ?? "cash")) as PayMethod;
+    const enabledMethods = METHODS.filter(m => m.value !== "installment" || enableInstallments);
+    const defaultCandidate = (settings?.default_payment ?? "cash") as PayMethod;
+    const defaultMethod = enabledMethods.some(m => m.value === defaultCandidate) ? defaultCandidate : "cash";
     const [method,       setMethod]       = useState<PayMethod>(defaultMethod);
     const [tender,       setTender]       = useState("");
     const [customer,     setCustomer]     = useState("");
@@ -178,7 +179,7 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
     const [promoError,   setPromoError]   = useState("");
     const [showPromos,   setShowPromos]   = useState(false);
     // Financing / installment fields
-    const [instProvider,   setInstProvider]   = useState<"home_credit"|"skyro"|"other">("home_credit");
+    const [instProvider,   setInstProvider]   = useState<"home_credit"|"skyro">("home_credit");
     const [instReference,  setInstReference]  = useState("");
     const [instPhone,      setInstPhone]      = useState("");
     const [instDown,       setInstDown]       = useState("0");
@@ -429,8 +430,8 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
                     {/* Payment method */}
                     <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">Payment method</label>
-                        <div className={cn("grid gap-1.5", enableInstallments ? "grid-cols-4 sm:grid-cols-7" : "grid-cols-3 sm:grid-cols-6")}>
-                            {METHODS.filter(m => m.value !== "installment" || enableInstallments).map(m => { const Icon = m.icon; return (
+                        <div className={cn("grid gap-1.5", enableInstallments ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3 sm:grid-cols-5")}>
+                            {enabledMethods.map(m => { const Icon = m.icon; return (
                                 <button key={m.value} onClick={() => setMethod(m.value)}
                                     className={cn("flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border text-[11px] font-semibold transition-all",
                                         method === m.value ? "bg-primary text-primary-foreground border-primary shadow-sm" : "border-border hover:border-primary/40 hover:bg-accent text-foreground")}>
@@ -452,14 +453,14 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
                                 <label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block mb-1">
                                     Financing Provider <span className="text-destructive">*</span>
                                 </label>
-                                <div className="grid grid-cols-3 gap-1.5">
-                                    {(["home_credit","skyro","other"] as const).map(p => (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {(["home_credit","skyro"] as const).map(p => (
                                         <button key={p} type="button" onClick={() => setInstProvider(p)}
                                             className={cn("h-9 rounded-lg border text-xs font-semibold transition-all",
                                                 instProvider === p
                                                     ? "bg-primary text-primary-foreground border-primary"
                                                     : "border-border text-foreground hover:border-primary/40 hover:bg-accent")}>
-                                            {p === "home_credit" ? "Home Credit" : p === "skyro" ? "Skyro" : "Other"}
+                                            {p === "home_credit" ? "Home Credit" : "Skyro"}
                                         </button>
                                     ))}
                                 </div>
@@ -648,7 +649,7 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
                         {loading ? <span className="h-4 w-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" /> : (
                             isInstallment
                                 ? <><CalendarClock className="h-4 w-4" />
-                                    Record {instProvider === "home_credit" ? "Home Credit" : instProvider === "skyro" ? "Skyro" : "Financing"}
+                                    Record {instProvider === "home_credit" ? "Home Credit" : "Skyro"}
                                     {downN > 0 ? ` · DP ${fmtMoney(downN, currency)}` : " · No DP"}
                                   </>
                                 : <><Zap className="h-4 w-4" />Charge {fmtMoney(total, currency)}</>

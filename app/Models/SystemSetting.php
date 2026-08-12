@@ -22,7 +22,7 @@ class SystemSetting extends Model
     ];
 
     protected $casts = [
-        'is_public'   => 'boolean',
+        'is_public' => 'boolean',
         'is_readonly' => 'boolean',
     ];
 
@@ -34,14 +34,16 @@ class SystemSetting extends Model
     protected static function booted(): void
     {
         // Flush cache whenever a setting is saved or deleted
-        static::saved(fn($s)   => static::flushCache($s->branch_id));
-        static::deleted(fn($s) => static::flushCache($s->branch_id));
+        static::saved(fn ($s) => static::flushCache($s->branch_id));
+        static::deleted(fn ($s) => static::flushCache($s->branch_id));
     }
 
     public static function flushCache(?int $branchId = null): void
     {
-        Cache::forget("settings:global");
-        if ($branchId) Cache::forget("settings:branch:{$branchId}");
+        Cache::forget('settings:global');
+        if ($branchId) {
+            Cache::forget("settings:branch:{$branchId}");
+        }
     }
 
     // ── Relationships ──────────────────────────────────────────────
@@ -71,7 +73,9 @@ class SystemSetting extends Model
         $all = static::allForBranch($branchId);
         $raw = $all[$key] ?? null;
 
-        if ($raw === null) return $default;
+        if ($raw === null) {
+            return $default;
+        }
 
         return static::castValue($raw['value'], $raw['type'] ?? 'string');
     }
@@ -84,23 +88,25 @@ class SystemSetting extends Model
      */
     public static function allForBranch(?int $branchId = null): array
     {
-        $cacheKey = $branchId ? "settings:branch:{$branchId}" : "settings:global";
+        $cacheKey = $branchId ? "settings:branch:{$branchId}" : 'settings:global';
 
         return Cache::remember($cacheKey, static::CACHE_TTL, function () use ($branchId) {
             // Load global settings
             $globals = static::whereNull('branch_id')
                 ->get()
                 ->keyBy('key')
-                ->map(fn($s) => ['value' => $s->value, 'type' => $s->type, 'group' => $s->group])
+                ->map(fn ($s) => ['value' => $s->value, 'type' => $s->type, 'group' => $s->group])
                 ->toArray();
 
-            if (!$branchId) return $globals;
+            if (! $branchId) {
+                return $globals;
+            }
 
             // Load branch settings
             $branchSettings = static::where('branch_id', $branchId)
                 ->get()
                 ->keyBy('key')
-                ->map(fn($s) => ['value' => $s->value, 'type' => $s->type, 'group' => $s->group])
+                ->map(fn ($s) => ['value' => $s->value, 'type' => $s->type, 'group' => $s->group])
                 ->toArray();
 
             // Branch settings override globals
@@ -115,8 +121,8 @@ class SystemSetting extends Model
     public static function group(string $group, ?int $branchId = null): array
     {
         return collect(static::allForBranch($branchId))
-            ->filter(fn($v, $k) => str_starts_with($k, $group . '.'))
-            ->map(fn($v) => static::castValue($v['value'], $v['type']))
+            ->filter(fn ($v, $k) => str_starts_with($k, $group.'.'))
+            ->map(fn ($v) => static::castValue($v['value'], $v['type']))
             ->toArray();
     }
 
@@ -144,10 +150,10 @@ class SystemSetting extends Model
     {
         return match ($type) {
             'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            'integer' => (int)   $value,
+            'integer' => (int) $value,
             'decimal' => (float) $value,
-            'json'    => json_decode($value, true),
-            default   => (string) $value,
+            'json' => json_decode($value, true),
+            default => (string) $value,
         };
     }
 
@@ -172,26 +178,26 @@ class SystemSetting extends Model
             ['key' => 'general.date_format',     'value' => 'M d, Y',               'type' => 'string',  'group' => 'general', 'label' => 'Date format'],
             ['key' => 'general.timezone',        'value' => 'Asia/Manila',           'type' => 'string',  'group' => 'general', 'label' => 'Timezone'],
             ['key' => 'general.logo',            'value' => '',                      'type' => 'image',   'group' => 'general', 'label' => 'Business logo'],
-            ['key' => 'general.color_theme',     'value' => 'ea',                    'type' => 'select',  'group' => 'general', 'label' => 'Color theme', 'description' => 'Brand color palette applied system-wide', 'options' => json_encode(['ea','indigo','emerald','amber','rose'])],
+            ['key' => 'general.color_theme',     'value' => 'ea',                    'type' => 'select',  'group' => 'general', 'label' => 'Color theme', 'description' => 'Brand color palette applied system-wide', 'options' => json_encode(['ea', 'indigo', 'emerald', 'amber', 'rose'])],
 
             // ── Tax ───────────────────────────────────────────────
             ['key' => 'tax.enable_vat',          'value' => 'false',                 'type' => 'boolean', 'group' => 'tax',     'label' => 'Enable VAT'],
             ['key' => 'tax.vat_rate',            'value' => '12',                    'type' => 'decimal', 'group' => 'tax',     'label' => 'VAT rate (%)'],
             ['key' => 'tax.vat_inclusive',       'value' => 'true',                  'type' => 'boolean', 'group' => 'tax',     'label' => 'Prices are VAT-inclusive'],
-            ['key' => 'tax.enable_service_charge','value' => 'false',                'type' => 'boolean', 'group' => 'tax',     'label' => 'Enable service charge'],
+            ['key' => 'tax.enable_service_charge', 'value' => 'false',                'type' => 'boolean', 'group' => 'tax',     'label' => 'Enable service charge'],
             ['key' => 'tax.service_charge_rate', 'value' => '10',                    'type' => 'decimal', 'group' => 'tax',     'label' => 'Service charge rate (%)'],
 
             // ── POS behavior ──────────────────────────────────────
-            ['key' => 'pos.require_cash_session','value' => 'true',                  'type' => 'boolean', 'group' => 'pos',     'label' => 'Require open cash session to sell'],
-            ['key' => 'pos.allow_negative_stock','value' => 'false',                 'type' => 'boolean', 'group' => 'pos',     'label' => 'Allow sales when stock is 0'],
-            ['key' => 'pos.default_payment',     'value' => 'cash',                  'type' => 'select',  'group' => 'pos',     'label' => 'Default payment method',         'options' => '["cash","gcash","card","others","credit","mixed","installment"]'],
+            ['key' => 'pos.require_cash_session', 'value' => 'true',                  'type' => 'boolean', 'group' => 'pos',     'label' => 'Require open cash session to sell'],
+            ['key' => 'pos.allow_negative_stock', 'value' => 'false',                 'type' => 'boolean', 'group' => 'pos',     'label' => 'Allow sales when stock is 0'],
+            ['key' => 'pos.default_payment',     'value' => 'cash',                  'type' => 'select',  'group' => 'pos',     'label' => 'Default payment method',         'options' => '["cash","gcash","card","credit","mixed","installment"]'],
             ['key' => 'pos.item_mode',           'value' => 'products_and_services', 'type' => 'select',  'group' => 'pos',     'label' => 'Cashier item mode', 'description' => 'Choose whether POS sells products, services, or both', 'options' => '["products_and_services","products_only","services_only"]'],
             ['key' => 'pos.laundry_mode',        'value' => 'auto',                  'type' => 'select',  'group' => 'pos',     'label' => 'Laundry POS mode', 'description' => 'Auto enables laundry behavior for Laundry branches', 'options' => '["auto","enabled","disabled"]'],
-            ['key' => 'pos.require_customer_name','value' => 'false',                'type' => 'boolean', 'group' => 'pos',     'label' => 'Require customer name at checkout'],
+            ['key' => 'pos.require_customer_name', 'value' => 'false',                'type' => 'boolean', 'group' => 'pos',     'label' => 'Require customer name at checkout'],
             ['key' => 'pos.default_due_days',    'value' => '0',                     'type' => 'integer', 'group' => 'pos',     'label' => 'Default due days for credit/laundry'],
             ['key' => 'pos.show_product_images', 'value' => 'true',                  'type' => 'boolean', 'group' => 'pos',     'label' => 'Show product images on POS'],
             ['key' => 'pos.allow_discount',      'value' => 'true',                  'type' => 'boolean', 'group' => 'pos',     'label' => 'Allow discount on sale'],
-            ['key' => 'pos.max_discount_percent','value' => '20',                    'type' => 'decimal', 'group' => 'pos',     'label' => 'Max discount % allowed'],
+            ['key' => 'pos.max_discount_percent', 'value' => '20',                    'type' => 'decimal', 'group' => 'pos',     'label' => 'Max discount % allowed'],
             ['key' => 'pos.senior_pwd_discount',  'value' => '20',                    'type' => 'decimal', 'group' => 'pos',     'label' => 'Senior/PWD discount (%)'],
             ['key' => 'pos.enable_installments', 'value' => 'false',                 'type' => 'boolean', 'group' => 'pos',     'label' => 'Enable installment sales', 'description' => 'Allow cashiers to process sales with installment payment plans'],
 
@@ -200,23 +206,23 @@ class SystemSetting extends Model
             ['key' => 'receipt.header_text',     'value' => 'Thank you for your purchase!', 'type' => 'string', 'group' => 'receipt', 'label' => 'Receipt header'],
             ['key' => 'receipt.footer_text',     'value' => 'Please come again.',    'type' => 'string',  'group' => 'receipt', 'label' => 'Receipt footer'],
             ['key' => 'receipt.show_cashier',    'value' => 'true',                  'type' => 'boolean', 'group' => 'receipt', 'label' => 'Show cashier name on receipt'],
-            ['key' => 'receipt.show_vat_breakdown','value' => 'false',               'type' => 'boolean', 'group' => 'receipt', 'label' => 'Show VAT breakdown on receipt'],
+            ['key' => 'receipt.show_vat_breakdown', 'value' => 'false',               'type' => 'boolean', 'group' => 'receipt', 'label' => 'Show VAT breakdown on receipt'],
             ['key' => 'receipt.copies',          'value' => '1',                     'type' => 'integer', 'group' => 'receipt', 'label' => 'Number of receipt copies'],
 
             // ── Inventory ─────────────────────────────────────────
-            ['key' => 'inventory.low_stock_threshold','value' => '5',                'type' => 'integer', 'group' => 'inventory','label' => 'Low stock alert threshold'],
-            ['key' => 'inventory.near_expiry_days',  'value' => '30',               'type' => 'integer', 'group' => 'inventory','label' => 'Near expiry warning (days)'],
-            ['key' => 'inventory.auto_grn_on_delivery','value' => 'false',          'type' => 'boolean', 'group' => 'inventory','label' => 'Auto-create GRN on order delivery'],
+            ['key' => 'inventory.low_stock_threshold', 'value' => '5',                'type' => 'integer', 'group' => 'inventory', 'label' => 'Low stock alert threshold'],
+            ['key' => 'inventory.near_expiry_days',  'value' => '30',               'type' => 'integer', 'group' => 'inventory', 'label' => 'Near expiry warning (days)'],
+            ['key' => 'inventory.auto_grn_on_delivery', 'value' => 'false',          'type' => 'boolean', 'group' => 'inventory', 'label' => 'Auto-create GRN on order delivery'],
 
             // ── Cash management ───────────────────────────────────
             ['key' => 'cash.require_count_on_close', 'value' => 'true',             'type' => 'boolean', 'group' => 'cash',    'label' => 'Require cash count before closing session'],
             ['key' => 'cash.petty_cash_limit',       'value' => '500',              'type' => 'decimal', 'group' => 'cash',    'label' => 'Max single petty cash withdrawal (₱)'],
             ['key' => 'cash.over_short_alert',       'value' => '100',              'type' => 'decimal', 'group' => 'cash',    'label' => 'Over/short alert threshold (₱)'],
-            ['key' => 'cash.require_manager_approval','value' => 'true',            'type' => 'boolean', 'group' => 'cash',    'label' => 'Require manager to verify cash count'],
+            ['key' => 'cash.require_manager_approval', 'value' => 'true',            'type' => 'boolean', 'group' => 'cash',    'label' => 'Require manager to verify cash count'],
 
             // ── Notifications ─────────────────────────────────────
-            ['key' => 'notification.low_stock_alert','value' => 'true',             'type' => 'boolean', 'group' => 'notification','label' => 'Show low stock alert on dashboard'],
-            ['key' => 'notification.expiry_alert',   'value' => 'true',             'type' => 'boolean', 'group' => 'notification','label' => 'Show near-expiry alert on dashboard'],
+            ['key' => 'notification.low_stock_alert', 'value' => 'true',             'type' => 'boolean', 'group' => 'notification', 'label' => 'Show low stock alert on dashboard'],
+            ['key' => 'notification.expiry_alert',   'value' => 'true',             'type' => 'boolean', 'group' => 'notification', 'label' => 'Show near-expiry alert on dashboard'],
         ];
     }
 
@@ -238,7 +244,7 @@ class SystemSetting extends Model
     {
         $path = static::logoPath($branchId);
 
-        return $path ? asset('storage/' . $path) : null;
+        return $path ? asset('storage/'.$path) : null;
     }
 
     public static function logoFilePath(?int $branchId = null): ?string
@@ -248,7 +254,7 @@ class SystemSetting extends Model
             return null;
         }
 
-        $fullPath = storage_path('app/public/' . $path);
+        $fullPath = storage_path('app/public/'.$path);
 
         return file_exists($fullPath) ? $fullPath : null;
     }
@@ -291,6 +297,7 @@ class SystemSetting extends Model
     public static function posItemMode(?int $branchId = null): string
     {
         $mode = (string) static::get('pos.item_mode', $branchId, 'products_and_services');
+
         return in_array($mode, ['products_and_services', 'products_only', 'services_only'], true)
             ? $mode
             : 'products_and_services';
@@ -299,6 +306,7 @@ class SystemSetting extends Model
     public static function laundryMode(?int $branchId = null): string
     {
         $mode = (string) static::get('pos.laundry_mode', $branchId, 'auto');
+
         return in_array($mode, ['auto', 'enabled', 'disabled'], true) ? $mode : 'auto';
     }
 

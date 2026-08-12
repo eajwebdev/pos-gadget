@@ -261,7 +261,7 @@ class PosController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.device_unit_id' => ['nullable', 'integer', 'distinct', 'exists:device_units,id'],
-            'payment_method' => ['required', 'in:cash,gcash,card,others,installment,credit,mixed'],
+            'payment_method' => ['required', 'in:cash,gcash,card,installment,credit,mixed'],
             'payment_amount' => ['nullable', 'numeric', 'min:0'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'customer_name' => ['nullable', 'string', 'max:80'],
@@ -271,7 +271,7 @@ class PosController extends Controller
             'promo_id' => $promoIdRules,
             'cash_session_id' => ['nullable', 'exists:cash_sessions,id'],
             // Financing / installment fields (used when payment_method = installment)
-            'installment_provider' => ['nullable', 'in:home_credit,skyro,other'],
+            'installment_provider' => ['nullable', 'in:home_credit,skyro'],
             'installment_reference' => ['nullable', 'string', 'max:100'],
             'installment_customer_phone' => ['nullable', 'string', 'max:30'],
             'installment_down_payment' => ['nullable', 'numeric', 'min:0'],
@@ -279,13 +279,19 @@ class PosController extends Controller
             'installment_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $installmentsEnabled = (bool) SystemSetting::get('pos.enable_installments', $branchId, false)
+            || filter_var(SystemSetting::get('modules.menu_32', null, true), FILTER_VALIDATE_BOOLEAN);
+
         // Extra validation for installment/financing payment
         if ($validated['payment_method'] === 'installment') {
+            if (! $installmentsEnabled) {
+                return back()->withErrors(['error' => 'Installment sales are not enabled.']);
+            }
             if (empty($validated['customer_name'])) {
                 return back()->withErrors(['error' => 'Customer name is required for financed sales.']);
             }
             if (empty($validated['installment_provider'])) {
-                return back()->withErrors(['error' => 'Financing provider (Home Credit / Skyro) is required.']);
+                return back()->withErrors(['error' => 'Installment provider (Home Credit or Skyro) is required.']);
             }
         }
 
@@ -477,7 +483,7 @@ class PosController extends Controller
                         'sale_id' => $sale->id,
                         'branch_id' => $branchId,
                         'user_id' => $user->id,
-                        'provider' => $validated['installment_provider'] ?? 'other',
+                        'provider' => $validated['installment_provider'] ?? 'home_credit',
                         'reference_number' => $validated['installment_reference'] ?? null,
                         'customer_name' => $validated['customer_name'],
                         'customer_phone' => $validated['installment_customer_phone'] ?? null,
@@ -656,7 +662,7 @@ class PosController extends Controller
             'items.*.id' => ['required', 'exists:products,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
-            'payment_method' => ['required', 'in:cash,gcash,card,others'],
+            'payment_method' => ['required', 'in:cash,gcash,card'],
             'payment_amount' => ['nullable', 'numeric', 'min:0'],
             'customer_name' => ['nullable', 'string', 'max:80'],
             'discount_percent' => ['nullable', 'numeric', 'between:0,100'],
