@@ -251,6 +251,10 @@ class PosController extends Controller
             return back()->withErrors(['error' => 'No open cash session. Please open a cash session before processing sales.']);
         }
 
+        $promoIdRules = Promo::tableExists()
+            ? ['nullable', 'exists:promos,id']
+            : ['nullable', 'prohibited'];
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['required', 'exists:products,id'],
@@ -264,7 +268,7 @@ class PosController extends Controller
             'due_date' => ['nullable', 'date'],
             'credit_notes' => ['nullable', 'string', 'max:500'],
             'discount_percent' => ['nullable', 'numeric', 'between:0,100'],
-            'promo_id' => ['nullable', 'exists:promos,id'],
+            'promo_id' => $promoIdRules,
             'cash_session_id' => ['nullable', 'exists:cash_sessions,id'],
             // Financing / installment fields (used when payment_method = installment)
             'installment_provider' => ['nullable', 'in:home_credit,skyro,other'],
@@ -290,7 +294,7 @@ class PosController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($validated, $user, $branchId) {
+            $result = DB::transaction(function () use ($validated, $user, $branchId, $openSession) {
                 $allowNeg = SystemSetting::allowNegativeStock($branchId);
                 $subtotal = 0;
                 $taxableSubtotal = 0;
