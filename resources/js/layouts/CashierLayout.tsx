@@ -138,8 +138,9 @@ export default function CashierLayout({ children }: { children: ReactNode }) {
             </main>
 
             {/* ── Bottom nav bar (h-16) ────────────────────────────── */}
-            <nav className="shrink-0 h-16 flex items-stretch select-none border-t border-border bg-primary">
-                {visibleNav.map(item => {
+            <nav className="shrink-0 h-20 select-none border-t border-border bg-card/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:px-3">
+                <div className="flex h-full items-stretch gap-2 overflow-x-auto pb-0.5">
+                    {visibleNav.map(item => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
                     return (
@@ -147,20 +148,26 @@ export default function CashierLayout({ children }: { children: ReactNode }) {
                             key={item.id}
                             href={item.href}
                             className={cn(
-                                "relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors",
+                                "group relative flex min-w-[5.75rem] flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-center shadow-sm transition-all duration-150 sm:min-w-[6.75rem]",
                                 active
-                                    ? "border-t-2 border-primary-foreground bg-black/20"
-                                    : "text-primary-foreground/60 hover:bg-black/10 hover:text-primary-foreground"
+                                    ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                                    : "border-border bg-background text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:text-foreground hover:shadow-md"
                             )}
-                            style={active ? { color: "var(--primary-foreground)" } : undefined}
                         >
-                            <Icon className="h-5 w-5" />
-                            <span className="text-[10px] font-semibold leading-none">{item.label}</span>
                             <span className={cn(
-                                "absolute bottom-1.5 right-1.5 text-[8px] font-mono px-1 py-px rounded leading-none",
+                                "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
                                 active
-                                    ? "bg-white/20 text-primary-foreground"
-                                    : "bg-black/20 text-primary-foreground/40"
+                                    ? "bg-primary-foreground/15"
+                                    : "bg-muted text-foreground group-hover:bg-background"
+                            )}>
+                                <Icon className="h-[18px] w-[18px]" />
+                            </span>
+                            <span className="max-w-full truncate text-[10px] font-bold leading-none sm:text-[11px]">{item.label}</span>
+                            <span className={cn(
+                                "absolute right-1.5 top-1.5 rounded px-1 py-px font-mono text-[8px] leading-none",
+                                active
+                                    ? "bg-primary-foreground/15 text-primary-foreground/80"
+                                    : "bg-muted text-muted-foreground/70"
                             )}>
                                 {item.key}
                             </span>
@@ -168,17 +175,16 @@ export default function CashierLayout({ children }: { children: ReactNode }) {
                     );
                 })}
 
-                {/* Divider */}
-                <div className="w-px self-stretch my-2 shrink-0 bg-primary-foreground/20" />
-
-                {/* Logout */}
-                <button
-                    onClick={() => router.post("/logout", {}, { preserveState: false })}
-                    className="shrink-0 w-16 flex flex-col items-center justify-center gap-0.5 transition-colors text-primary-foreground/60 hover:bg-black/10 hover:text-primary-foreground"
-                >
-                    <LogOut className="h-5 w-5" />
-                    <span className="text-[10px] font-semibold leading-none">Logout</span>
-                </button>
+                    <button
+                        onClick={() => router.post("/logout", {}, { preserveState: false })}
+                        className="group relative flex min-w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 text-center text-muted-foreground shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 hover:shadow-md dark:hover:border-rose-900/70 dark:hover:bg-rose-950/30 dark:hover:text-rose-300 sm:min-w-[6rem]"
+                    >
+                        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-foreground transition-colors group-hover:bg-white dark:group-hover:bg-rose-950/60">
+                            <LogOut className="h-[18px] w-[18px]" />
+                        </span>
+                        <span className="text-[10px] font-bold leading-none sm:text-[11px]">Logout</span>
+                    </button>
+                </div>
             </nav>
         </div>
     );

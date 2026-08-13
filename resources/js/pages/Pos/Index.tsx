@@ -1365,12 +1365,12 @@ export default function PosIndex() {
     // ── Standard layouts ──────────────────────────────────────────────────────
     return (
         <AdminLayout>
-            {/* CashierLayout (bottom-nav): header=3rem + nav=4rem = 7rem chrome, no padding */}
+            {/* CashierLayout (bottom-nav): header=3rem + nav=5rem = 8rem chrome, no padding */}
             {/* AdminLayout: header=4rem, p-6 padding → -m-6 escape */}
             <div className={cn(
                 "relative flex flex-col overflow-hidden",
                 usesCashierChrome
-                    ? "h-[calc(100vh-7rem)]"
+                    ? "h-[calc(100vh-8rem)]"
                     : "h-[calc(100vh-4rem)] -m-6"
             )}>
                 {noSessionOverlay}
