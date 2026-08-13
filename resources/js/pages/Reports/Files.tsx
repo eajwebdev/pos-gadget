@@ -28,7 +28,7 @@ export interface ReportFilters {
 export interface DailySummaryData {
   id: number;
   summary_date: string;
-  branch_id: number | null;
+  branch_id: number;
   total_transactions: number;
   gross_sales: number;
   total_refunds: number;

@@ -66,14 +66,13 @@ class DailySummary extends Model
         return $this->belongsTo(User::class, 'finalized_by');
     }
 
-    // ── Core: Generate (Fixed for null branch_id) ─────────────────────
-    public static function generate(?int $branchId = null, Carbon|string $date, bool $force = false): static
+    // Core: Generate a branch-scoped daily summary.
+    public static function generate(int $branchId, Carbon|string $date, bool $force = false): static
     {
         $date = Carbon::parse($date)->toDateString();
 
-        // Find existing record (safe with null branch_id)
         $existing = static::where('summary_date', $date)
-            ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId))
+            ->where('branch_id', $branchId)
             ->first();
 
         if ($existing?->is_finalized && !$force) {
@@ -83,7 +82,7 @@ class DailySummary extends Model
         // Sales
         $salesQuery = Sale::whereDate('created_at', $date)
             ->where('status', '!=', 'voided')
-            ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId));
+            ->where('branch_id', $branchId);
 
         $totalTransactions = (clone $salesQuery)->count();
 
@@ -94,7 +93,7 @@ class DailySummary extends Model
 
         $totalRefunds = (float) Sale::whereDate('created_at', $date)
             ->where('status', 'voided')
-            ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId))
+            ->where('branch_id', $branchId)
             ->sum('total');
 
         $cashSales     = (float) (clone $salesQuery)->where('payment_method', 'cash')->sum('total');
@@ -118,17 +117,13 @@ class DailySummary extends Model
         $itemsSold = (int) SaleItem::whereHas('sale', fn($q) => 
             $q->whereDate('created_at', $date)
               ->where('status', '!=', 'voided')
-              ->when($branchId !== null, fn($q2) => $q2->where('branch_id', $branchId))
+              ->where('branch_id', $branchId)
         )->sum('quantity');
 
-        // Cash session (only for specific branch)
-        $session = null;
-        if ($branchId !== null) {
-            $session = CashSession::where('branch_id', $branchId)
-                ->whereDate('opened_at', $date)
-                ->latest('opened_at')
-                ->first();
-        }
+        $session = CashSession::where('branch_id', $branchId)
+            ->whereDate('opened_at', $date)
+            ->latest('opened_at')
+            ->first();
 
         $openingCash  = $session ? (float) $session->opening_cash : 0.00;
         $expectedCash = $session ? (float) $session->expected_cash : 0.00;
@@ -138,7 +133,7 @@ class DailySummary extends Model
         // Expenses
         $expenseQuery = Expense::whereDate('expense_date', $date)
             ->where('status', 'approved')
-            ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId));
+            ->where('branch_id', $branchId);
 
         $totalExpenses = (float) (clone $expenseQuery)->sum('amount');
 
@@ -151,20 +146,15 @@ class DailySummary extends Model
 
         $netIncome = round($grossSales - $totalRefunds - $totalExpenses, 2);
 
-        // Low stock (only for specific branch)
-        $lowStockCount = 0;
-        if ($branchId !== null) {
-            $lowStockCount = ProductStock::where('branch_id', $branchId)
-                ->where('stock', '>', 0)
-                ->where('stock', '<=', 5)
-                ->count();
-        }
+        $lowStockCount = ProductStock::where('branch_id', $branchId)
+            ->where('stock', '>', 0)
+            ->where('stock', '<=', 5)
+            ->count();
 
-        // Final upsert - explicitly allow null branch_id
         return static::updateOrCreate(
             [
                 'summary_date' => $date,
-                'branch_id'    => $branchId,   // null is now allowed
+                'branch_id'    => $branchId,
             ],
             [
                 'total_transactions'   => $totalTransactions,

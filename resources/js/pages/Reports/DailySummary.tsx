@@ -44,7 +44,11 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  const canGenerate = Boolean(filters.branch_id);
+
   const handleGenerate = () => {
+    if (!canGenerate) return;
+
     setLoading(true);
     router.get(reportRoutes.daily(), filters, {
       preserveState: true,
@@ -54,6 +58,8 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
   };
 
   const handleViewPdf = () => {
+    if (!canGenerate) return;
+
     openLivePdfPreview('daily', filters);
   };
 
@@ -85,6 +91,7 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
             <Button 
               onClick={handleViewPdf} 
               variant="outline" 
+              disabled={!canGenerate}
               className="gap-2"
             >
               <Download className="h-4 w-4" />
@@ -110,14 +117,13 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
                     <Building2 className="h-3.5 w-3.5" /> Branch
                   </Label>
                   <Select
-                    value={filters.branch_id?.toString() || "all"}
-                    onValueChange={(v) => handleFilterChange('branch_id', v === "all" ? undefined : Number(v))}
+                    value={filters.branch_id?.toString() || ""}
+                    onValueChange={(v) => handleFilterChange('branch_id', Number(v))}
                   >
                     <SelectTrigger className="mt-1.5 h-10">
-                      <SelectValue placeholder="All Branches" />
+                      <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Branches</SelectItem>
                       {branches.map(branch => (
                         <SelectItem key={branch.id} value={branch.id.toString()}>
                           {branch.name}
@@ -141,7 +147,7 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
               <div className="md:col-span-2 flex items-end">
                 <Button 
                   onClick={handleGenerate} 
-                  disabled={loading}
+                  disabled={loading || !canGenerate}
                   className="w-full h-10"
                 >
                   {loading ? 'Generating...' : 'Generate'}

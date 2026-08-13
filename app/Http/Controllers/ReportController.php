@@ -31,6 +31,40 @@ class ReportController extends Controller
     }
 
     /**
+     * Daily summaries are stored per branch, so they cannot use the
+     * all-branches null scope used by aggregate reports.
+     */
+    private function resolvedDailySummaryBranchId(Request $request): ?int
+    {
+        $user = auth()->user();
+
+        if (! $user->isAdmin()) {
+            return $user->branch_id ? (int) $user->branch_id : null;
+        }
+
+        if ($request->filled('branch_id')) {
+            $branchId = (int) $request->branch_id;
+            abort_unless(
+                Branch::whereKey($branchId)->where('is_active', true)->exists(),
+                404,
+                'Branch not found.'
+            );
+
+            return $branchId;
+        }
+
+        if ($user->branch_id) {
+            return (int) $user->branch_id;
+        }
+
+        $branchId = Branch::where('is_active', true)
+            ->orderBy('name')
+            ->value('id');
+
+        return $branchId ? (int) $branchId : null;
+    }
+
+    /**
      * Returns the branches list for the branch selector.
      * Non-admins receive null so the frontend hides the selector.
      */
@@ -51,10 +85,10 @@ class ReportController extends Controller
     // ====================== DAILY SUMMARY ======================
     public function dailySummary(Request $request)
     {
-        $branchId = $this->resolvedBranchId($request);
+        $branchId = $this->resolvedDailySummaryBranchId($request);
         $date = $request->date ?? today()->toDateString();
 
-        $summary = DailySummary::generate($branchId, $date);
+        $summary = $branchId ? DailySummary::generate($branchId, $date) : null;
 
         return Inertia::render('Reports/DailySummary', [
             'dailySummary'    => $summary,
@@ -65,7 +99,9 @@ class ReportController extends Controller
 
     public function dailySummaryPdf(Request $request)
     {
-        $branchId = $this->resolvedBranchId($request);
+        $branchId = $this->resolvedDailySummaryBranchId($request);
+        abort_unless($branchId, 422, 'Select a branch before generating the daily summary PDF.');
+
         $date = $request->date ?? today()->toDateString();
 
         $summary = DailySummary::generate($branchId, $date);
