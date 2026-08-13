@@ -37,7 +37,7 @@ interface PageProps {
     active_branch_id: number | null;
     is_super_admin:   boolean;
     is_administrator: boolean;
-    app:              { currency: string };
+    app:              { currency: string; name?: string; logo_url?: string | null };
     flash?:           { message?: { type: string; text: string } | null };
     [key: string]: unknown;
 }
@@ -481,15 +481,32 @@ export default function SettingsIndex() {
         });
     };
 
+    const handleScopeChange = (branchId: number | null) => {
+        setSelectedBranch(branchId);
+        setDirty({});
+        router.get(routes.settings.index(), branchId ? { branch_id: branchId } : {}, {
+            preserveScroll: true,
+            preserveState: false,
+            replace: true,
+        });
+    };
+
     const handleSave = () => {
         if (Object.keys(dirty).length === 0) return;
+        const changedKeys = Object.keys(dirty);
         setSaving(true);
         router.post(routes.settings.save(), {
             settings:  dirty,
             branch_id: selectedBranch ?? undefined,
         }, {
             preserveScroll: true,
-            onSuccess: () => { setSaving(false); setDirty({}); },
+            onSuccess: () => {
+                setSaving(false);
+                setDirty({});
+                if (changedKeys.includes("general.business_name") || changedKeys.includes("general.logo")) {
+                    router.reload({ only: ["app"] });
+                }
+            },
             onError:   () => setSaving(false),
         });
     };
@@ -583,14 +600,14 @@ export default function SettingsIndex() {
                         <div className="flex flex-wrap gap-2">
                             {/* Global option — Super Admin and Administrator */}
                             {canAccessGlobal && (
-                                <button onClick={() => setSelectedBranch(null)}
+                                <button onClick={() => handleScopeChange(null)}
                                     className={cn("px-4 py-2 rounded-xl border text-sm font-semibold transition-all",
                                         selectedBranch === null ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/40 hover:bg-accent")}>
                                     🌐 Global defaults
                                 </button>
                             )}
                             {branches.map(b => (
-                                <button key={b.id} onClick={() => setSelectedBranch(b.id)}
+                                <button key={b.id} onClick={() => handleScopeChange(b.id)}
                                     className={cn("px-4 py-2 rounded-xl border text-sm font-semibold transition-all",
                                         selectedBranch === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/40 hover:bg-accent")}>
                                     {b.name}
