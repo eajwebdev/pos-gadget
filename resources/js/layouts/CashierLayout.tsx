@@ -75,22 +75,27 @@ export default function CashierLayout({ children }: { children: ReactNode }) {
             </Head>
 
             {/* ── Top bar (h-12) ───────────────────────────────────── */}
-            <header className="shrink-0 h-12 bg-card border-b border-border flex items-center justify-between px-4 gap-3">
+            <header className="shrink-0 h-12 bg-card border-b border-border flex items-center justify-between px-3 sm:px-4 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                    <div className="shrink-0 h-7 w-7 flex items-center justify-center rounded-md bg-primary text-primary-foreground overflow-hidden">
+                    <div className="shrink-0 h-8 w-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground overflow-hidden">
                         {appLogo ? (
                             <img src={appLogo} alt={appName} className="h-full w-full object-contain bg-background" />
                         ) : (
                             <span className="font-bold text-xs">{appName.charAt(0).toUpperCase()}</span>
                         )}
                     </div>
-                    <span className="font-semibold text-sm truncate">
-                        {branch?.name ?? appName}
-                    </span>
+                    <div className="min-w-0">
+                        <span className="block truncate text-sm font-semibold leading-tight">
+                            {branch?.name ?? appName}
+                        </span>
+                        <span className="hidden text-[11px] leading-tight text-muted-foreground sm:block">
+                            {user?.fname} {user?.lname}
+                        </span>
+                    </div>
                     {/* Session status — only shown when POS passes it as a prop */}
                     {session !== undefined && (
                         <div className={cn(
-                            "hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0",
+                            "hidden md:flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0",
                             session
                                 ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400"
                                 : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
@@ -103,10 +108,18 @@ export default function CashierLayout({ children }: { children: ReactNode }) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <span className="hidden md:block text-xs text-muted-foreground">
-                        {user?.fname} {user?.lname}
-                        <span className="ml-1 px-1.5 py-0.5 rounded bg-muted text-[10px] font-bold uppercase">Cashier</span>
-                    </span>
+                    <Link
+                        href="/cash-sessions"
+                        className={cn(
+                            "hidden h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-colors sm:inline-flex",
+                            session
+                                ? "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                                : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+                        )}
+                    >
+                        <Wallet className="h-3.5 w-3.5" />
+                        {session ? "Session" : "Open Session"}
+                    </Link>
                     <Button
                         variant="ghost" size="icon" className="h-7 w-7"
                         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

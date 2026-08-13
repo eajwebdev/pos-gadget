@@ -238,6 +238,35 @@ function SubLink({
     );
 }
 
+function HeaderAction({
+    href,
+    icon: Icon,
+    label,
+}: {
+    href: string;
+    icon: React.ElementType;
+    label: string;
+}) {
+    return (
+        <Link
+            href={href}
+            title={label}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+            <Icon className="h-3.5 w-3.5" />
+            <span className="hidden xl:inline">{label}</span>
+        </Link>
+    );
+}
+
+function normalizePath(path: string): string {
+    try {
+        return (new URL(path, "http://pos.local")).pathname.replace(/\/$/, "") || "/";
+    } catch {
+        return path.split("?")[0].replace(/\/$/, "") || "/";
+    }
+}
+
 // ─── Main layout ──────────────────────────────────────────────────────────────
 export default function AdminLayout({ children }: AdminLayoutProps) {
     const { props } = usePage<any>();
@@ -253,14 +282,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     // kiosk  → handled inside Pos/Index.tsx (truly full-screen, no layout wrapper)
     const posLayout = props.auth?.user?.pos_layout ?? "grid";
     const BOTTOM_NAV_LAYOUTS = ["tablet", "restaurant", "grocery", "cafe", "salon"];
-    if (BOTTOM_NAV_LAYOUTS.includes(posLayout)) {
+    if (user?.is_cashier || BOTTOM_NAV_LAYOUTS.includes(posLayout)) {
         return <CashierLayout>{children}</CashierLayout>;
     }
 
-    const currentPath = usePage().url.split("?")[0].replace(/\/$/, "");
+    const currentPath = normalizePath(usePage().url);
 
     const isActive = (path: string): boolean => {
-        const p = path.replace(/\/$/, "");
+        const p = normalizePath(path);
         return currentPath === p || currentPath.startsWith(p + "/");
     };
 
@@ -286,6 +315,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const reportsActive = ["/reports", "/logs", "/stock-adjustments"].some(isActive);
     // Management group active
     const managementActive = ["/users", "/suppliers", "/branches", "/settings"].some(isActive);
+    const quickActions = [
+        has(MENU.POS) && { href: "/pos", icon: ShoppingCart, label: "POS" },
+        has(MENU.SALES_HISTORY) && { href: "/sales/history", icon: History, label: "Sales" },
+        has(MENU.CASH_COUNTS) && { href: "/cash-counts", icon: Calculator, label: "Cash Count" },
+        has(MENU.DAILY_SUMMARY) && { href: "/reports/daily", icon: BarChart2, label: "Daily" },
+    ].filter(Boolean) as { href: string; icon: React.ElementType; label: string }[];
 
     return (
         <SidebarProvider defaultOpen>
@@ -554,25 +589,36 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 {/* ── MAIN CONTENT ────────────────────────────────────── */}
                 <div className="flex flex-1 flex-col min-w-0">
                     {/* Top bar */}
-                    <header className="sticky top-0 z-40 h-16 bg-background border-b border-border flex items-center justify-between px-6 shadow-sm">
-                        <div className="flex items-center gap-3">
+                    <header className="sticky top-0 z-40 h-14 bg-background/95 border-b border-border flex items-center justify-between gap-3 px-4 shadow-sm backdrop-blur">
+                        <div className="flex min-w-0 items-center gap-3">
                             <SidebarTrigger />
-                            <h1 className="text-base font-semibold">{props.title ?? "Dashboard"}</h1>
+                            <div className="min-w-0">
+                                <h1 className="truncate text-sm font-semibold">{props.title ?? "Dashboard"}</h1>
+                                <p className="hidden text-[11px] text-muted-foreground sm:block">
+                                    {roleLabel()}{sidebarSubtitle ? ` / ${sidebarSubtitle}` : ""}
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 lg:flex">
+                            {quickActions.map(action => (
+                                <HeaderAction key={action.href} {...action} />
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={toggleTheme}
                                 aria-label="Toggle theme"
-                                className="text-muted-foreground hover:text-foreground"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             >
                                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                             </Button>
 
-                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
                                 <Bell className="h-4 w-4" />
                             </Button>
 
@@ -585,7 +631,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     </header>
 
                     {/* Page content */}
-                    <main className="flex-1 overflow-y-auto p-6 bg-background">
+                    <main className="flex-1 overflow-y-auto bg-background p-4 xl:p-5">
                         {children}
                     </main>
                 </div>

@@ -14,7 +14,7 @@ import {
     Calendar as CalendarIcon, ArrowUpRight, ArrowDownRight,
     RefreshCw, Banknote, ClipboardList,
     Building2, ChevronDown, Wallet, ChevronRight, CircleDot,
-    LayoutGrid, ExternalLink, Zap, PackageX,
+    LayoutGrid, ExternalLink, Zap, PackageX, ArchiveX, PackageCheck,
     Clock, Activity,
 } from "lucide-react";
 
@@ -230,6 +230,38 @@ function StatusBadge({ status }: { status: string }) {
 // ─── List row ─────────────────────────────────────────────────────────────────
 function ListRow({ children, last }: { children: React.ReactNode; last?: boolean }) {
     return <div className={cn("flex items-center gap-3 py-2.5 min-w-0", !last && "border-b border-border/60")}>{children}</div>;
+}
+
+function OpsTile({ title, value, note, href, icon: Icon, tone = "default" }: {
+    title: string;
+    value: string;
+    note: string;
+    href?: string;
+    icon: React.ElementType;
+    tone?: "default" | "good" | "warn" | "bad" | "info";
+}) {
+    const tones = {
+        default: "text-muted-foreground",
+        good: "text-emerald-600 dark:text-emerald-400",
+        warn: "text-amber-600 dark:text-amber-400",
+        bad: "text-rose-600 dark:text-rose-400",
+        info: "text-sky-600 dark:text-sky-400",
+    };
+    const inner = (
+        <div className="group flex h-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent/30">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                <Icon className={cn("h-4 w-4", tones[tone])} />
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-medium text-muted-foreground">{title}</p>
+                <p className="truncate text-lg font-semibold leading-tight tabular-nums">{value}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{note}</p>
+            </div>
+            {href && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary" />}
+        </div>
+    );
+
+    return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
 // ─── Branch filter ────────────────────────────────────────────────────────────
@@ -518,10 +550,52 @@ export default function Dashboard() {
     const netMargin = kpis && kpis.revenue > 0 ? (kpis.net_income / kpis.revenue) * 100 : null;
     const avgTransaction = kpis && kpis.transactions > 0 ? kpis.revenue / kpis.transactions : null;
     const stockAttention = data ? data.stock_health.lowStock + data.stock_health.outStock : null;
+    const opsTiles = [
+        {
+            title: "Stock Attention",
+            value: stockAttention === null ? "-" : fmtNum(stockAttention),
+            note: `${data?.stock_health.lowStock ?? 0} low / ${data?.stock_health.outStock ?? 0} out`,
+            href: has("11") ? "/stock" : undefined,
+            icon: AlertTriangle,
+            tone: stockAttention && stockAttention > 0 ? "warn" : "good",
+        },
+        {
+            title: "Open Cash Sessions",
+            value: loading ? "-" : fmtNum(data?.recent_sessions.filter(s => s.status === "open").length ?? 0),
+            note: "Drawer monitoring",
+            href: has("14") ? "/cash-sessions" : undefined,
+            icon: Wallet,
+            tone: "info",
+        },
+        {
+            title: "Credit Outstanding",
+            value: kpis ? fmtMoney(kpis.credit_outstanding ?? 0, true) : "-",
+            note: "Customer balances",
+            href: has("39") ? "/customers" : undefined,
+            icon: Clock,
+            tone: (kpis?.credit_outstanding ?? 0) > 0 ? "warn" : "good",
+        },
+        {
+            title: "Voids",
+            value: kpis ? fmtNum(kpis.void_count) : "-",
+            note: kpis ? fmtMoney(kpis.void_total, true) : "This period",
+            href: has("3") ? "/sales/history" : undefined,
+            icon: ArchiveX,
+            tone: (kpis?.void_count ?? 0) > 0 ? "bad" : "good",
+        },
+        {
+            title: "Pending Orders",
+            value: loading ? "-" : fmtNum(data?.pending_orders.length ?? 0),
+            note: "Awaiting receiving",
+            href: has("12") ? "/purchase-orders" : undefined,
+            icon: PackageCheck,
+            tone: (data?.pending_orders.length ?? 0) > 0 ? "info" : "default",
+        },
+    ] as const;
 
     return (
         <AdminLayout>
-            <div className="space-y-5 pb-10 max-w-[1440px] mx-auto">
+            <div className="space-y-4 pb-8">
 
                 {/* ── Page header ───────────────────────────────────────── */}
                 <div className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
@@ -608,6 +682,15 @@ export default function Dashboard() {
                             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                             {lastRefresh ? format(lastRefresh, "h:mm a") : "Loading"}
                         </p>
+                    </div>
+                </div>
+
+                <div>
+                    <SectionTitle>Operations</SectionTitle>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        {opsTiles.map(tile => (
+                            <OpsTile key={tile.title} {...tile} />
+                        ))}
                     </div>
                 </div>
 

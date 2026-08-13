@@ -111,6 +111,48 @@ function CategoryDropdown({ categories, activeCat, onChange }: {
     );
 }
 
+function CategoryPills({ categories, activeCat, onChange }: {
+    categories: Category[];
+    activeCat: number | null;
+    onChange: (id: number | null) => void;
+}) {
+    if (!categories.length) return null;
+
+    return (
+        <div className="shrink-0 overflow-x-auto border-b border-border bg-card px-3 py-2">
+            <div className="flex min-w-max gap-2">
+                <button
+                    type="button"
+                    onClick={() => onChange(null)}
+                    className={cn(
+                        "h-10 rounded-lg border px-4 text-sm font-semibold transition-colors",
+                        activeCat === null
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                >
+                    All
+                </button>
+                {categories.map(category => (
+                    <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => onChange(category.id)}
+                        className={cn(
+                            "h-10 rounded-lg border px-4 text-sm font-semibold transition-colors",
+                            activeCat === category.id
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                    >
+                        {category.name}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ─── VariantPicker ────────────────────────────────────────────────────────────
 function VariantPicker({ product, currency, onSelect, onClose }: {
     product: Product; currency: string;
@@ -270,7 +312,7 @@ function PaymentModal({ subtotal, settings, currency, customers, customerNameReq
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/40 backdrop-blur-sm">
-            <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl flex flex-col max-h-[92vh]">
+            <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl lg:max-w-3xl shadow-2xl flex flex-col max-h-[92vh]">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
                     <p className="font-bold text-foreground">Checkout</p>
                     <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
@@ -771,20 +813,20 @@ function CartPanel({ cart, subtotal, itemCount, currency, error, onUpdateQty, on
                                 <div className="shrink-0 flex flex-col items-end gap-1 pt-0.5">
                                     <div className="flex items-center gap-1">
                                         <button onClick={() => onUpdateQty(item.key, -1)}
-                                            className="h-6 w-6 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                                            <Minus className="h-3 w-3" />
+                                            className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                            <Minus className="h-3.5 w-3.5" />
                                         </button>
-                                        <span className="w-6 text-center text-sm font-bold tabular-nums">{item.qty}</span>
+                                        <span className="w-7 text-center text-sm font-bold tabular-nums">{item.qty}</span>
                                         <button onClick={() => onUpdateQty(item.key, 1)} disabled={item.qty >= item.stock}
-                                            className="h-6 w-6 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">
-                                            <Plus className="h-3 w-3" />
+                                            className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30">
+                                            <Plus className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <span className="text-xs font-bold tabular-nums text-foreground">{fmtMoney(item.price * item.qty, currency)}</span>
                                         <button onClick={() => onRemove(item.key)}
-                                            className="h-4 w-4 rounded flex items-center justify-center text-muted-foreground/30 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all">
-                                            <X className="h-3 w-3" />
+                                            className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 transition-all">
+                                            <X className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
                                 </div>
@@ -862,6 +904,8 @@ export default function PosIndex() {
     const user        = props.auth?.user;
     const currency    = app?.currency ?? "₱";
     const layout      = (props.preferred_layout ?? "grid") as LayoutMode;
+    const cashierChromeLayouts: LayoutMode[] = ["tablet", "restaurant", "grocery", "cafe", "salon"];
+    const usesCashierChrome = !!user?.is_cashier || cashierChromeLayouts.includes(layout);
 
     const [cart,               setCart]               = useState<CartItem[]>([]);
     const [search,             setSearch]             = useState("");
@@ -1075,6 +1119,7 @@ export default function PosIndex() {
                 // Use server-computed values — avoids float drift between UI and DB
                 const disc = r.discount_amount ?? 0;
                 const pd   = r.promo_discount   ?? 0;
+                const serviceChargeAmount = r.service_charge_amount ?? 0;
                 const activeOrder = activeTableOrderId
                     ? open_table_orders.find(o => o.id === activeTableOrderId)
                     : null;
@@ -1095,7 +1140,7 @@ export default function PosIndex() {
                     notes: [
                         payData.discount_percent > 0 ? `Discount ${payData.discount_percent}%` : null,
                         r.promo_name ? `Promo: ${r.promo_name}` : null,
-                        r.service_charge_amount > 0 ? `Service charge ${fmtMoney(r.service_charge_amount, currency)}` : null,
+                        serviceChargeAmount > 0 ? `Service charge ${fmtMoney(serviceChargeAmount, currency)}` : null,
                     ].filter(Boolean).join(' | ') || null,
                     created_at:      new Date().toISOString(),
                     cashier:         user ? `${user.fname} ${user.lname}` : "—",
@@ -1129,15 +1174,15 @@ export default function PosIndex() {
 
     // ── Combined search/barcode input ─────────────────────────────────────────
     const searchInput = (
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 min-w-[220px] max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
                 ref={searchRef}
                 value={search}
                 onChange={e => handleSearchOrScan(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Search or scan barcode / IMEI / serial… (F2)"
-                className="w-full h-9 pl-9 pr-8 text-sm bg-background border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                placeholder="Scan barcode / IMEI or search product (F2)"
+                className="w-full h-10 pl-9 pr-8 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground"
                 // Suppress browser floating toolbars (Translate / Clipboard / Web Search)
                 // that appear on Android Chrome when text is entered via OTG barcode scanner
                 autoComplete="off"
@@ -1150,6 +1195,19 @@ export default function PosIndex() {
                 ? <button onClick={() => { setSearch(""); refocus(); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
                 : <ScanLine className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40 pointer-events-none" />}
         </div>
+    );
+
+    const checkoutButton = (
+        <Button
+            className="h-10 gap-2 px-4 font-bold"
+            disabled={!cart.length || sessionBlocked}
+            onClick={() => { setError(null); setShowPayment(true); }}
+            title="Checkout"
+        >
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">Checkout</span>
+            <span className="rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-semibold">F9</span>
+        </Button>
     );
 
     // ── Session guard ─────────────────────────────────────────────────────────
@@ -1208,6 +1266,19 @@ export default function PosIndex() {
                             : <ScanLine className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40 pointer-events-none" />}
                     </div>
                     <CategoryDropdown categories={categories} activeCat={activeCat} onChange={setActiveCat} />
+                    <div className="hidden items-center gap-3 rounded-md bg-white/15 px-3 py-1.5 text-primary-foreground lg:flex">
+                        <span className="text-xs font-semibold">{itemCount} item{itemCount === 1 ? "" : "s"}</span>
+                        <span className="text-sm font-black tabular-nums">{fmtMoney(subtotal, currency)}</span>
+                    </div>
+                    <button
+                        disabled={!cart.length || sessionBlocked}
+                        onClick={() => { setError(null); setShowPayment(true); }}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-background dark:text-foreground"
+                    >
+                        <Zap className="h-4 w-4" />
+                        Checkout
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold">F9</span>
+                    </button>
                     <button onClick={() => window.location.reload()}
                         className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 text-primary-foreground transition-colors shrink-0">
                         <RefreshCw className="h-4 w-4" />
@@ -1251,6 +1322,13 @@ export default function PosIndex() {
                     {noSessionOverlay}
                     <div className="shrink-0 flex items-center gap-2 border-b border-border bg-card px-4 py-2">
                         {searchInput}
+                        {cart.length > 0 && (
+                            <div className="hidden min-w-[92px] text-right sm:block">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
+                                <p className="text-sm font-bold tabular-nums">{fmtMoney(subtotal, currency)}</p>
+                            </div>
+                        )}
+                        {checkoutButton}
                         <a href={routes.sales.history()}
                             className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0">
                             <History className="h-3.5 w-3.5" />
@@ -1291,7 +1369,7 @@ export default function PosIndex() {
             {/* AdminLayout: header=4rem, p-6 padding → -m-6 escape */}
             <div className={cn(
                 "relative flex flex-col overflow-hidden",
-                user?.is_cashier
+                usesCashierChrome
                     ? "h-[calc(100vh-7rem)]"
                     : "h-[calc(100vh-4rem)] -m-6"
             )}>
@@ -1313,10 +1391,22 @@ export default function PosIndex() {
                     {/* Combined search + barcode */}
                     {searchInput}
                     {/* Category dropdown — hidden for cafe/restaurant/mobile (they have their own navigation) */}
-                    {layout !== "cafe" && layout !== "restaurant" && (
+                    {layout !== "tablet" && layout !== "cafe" && layout !== "restaurant" && (
                         <CategoryDropdown categories={categories} activeCat={activeCat} onChange={setActiveCat} />
                     )}
+                    <div className="hidden items-center gap-3 rounded-md border border-border bg-background px-3 py-1.5 xl:flex">
+                        <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cart</p>
+                            <p className="text-sm font-bold tabular-nums">{itemCount} item{itemCount === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className="h-6 w-px bg-border" />
+                        <div className="text-right">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Subtotal</p>
+                            <p className="text-sm font-bold tabular-nums">{fmtMoney(subtotal, currency)}</p>
+                        </div>
+                    </div>
                     <div className="flex-1" />
+                    {checkoutButton}
                     <a href={routes.sales.history()}
                         className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                         <History className="h-3.5 w-3.5" /><span className="hidden sm:block">History</span>
@@ -1329,6 +1419,9 @@ export default function PosIndex() {
 
                 <div className="flex flex-1 overflow-hidden">
                     <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+                        {layout === "tablet" && (
+                            <CategoryPills categories={categories} activeCat={activeCat} onChange={setActiveCat} />
+                        )}
                         <div className="flex-1 overflow-y-auto p-3">
                             <Suspense fallback={<LayoutSpinner />}>
                                 {layout === "grid"       && <GridLayout       filtered={filtered} cart={cart} currency={currency} onProductClick={handleProductClick} />}
@@ -1342,7 +1435,10 @@ export default function PosIndex() {
                     </div>
 
                     {/* Cart sidebar */}
-                    <div className="shrink-0 flex flex-col border-l border-border w-72 lg:w-80 xl:w-96">
+                    <div className={cn(
+                        "shrink-0 flex flex-col border-l border-border",
+                        layout === "tablet" ? "w-80 xl:w-[26rem]" : "w-72 lg:w-80 xl:w-96",
+                    )}>
                         <CartPanel cart={cart} subtotal={subtotal} itemCount={itemCount} currency={currency} error={error}
                             onUpdateQty={updateQty} onRemove={removeItem} onClear={clearCart}
                             onCharge={() => { setError(null); setShowPayment(true); }} />
@@ -1361,7 +1457,7 @@ export default function PosIndex() {
                     customerNameRequired={requireCustomerName} promos={promos} cart={cart}
                     onConfirm={handleConfirm}
                     onClose={() => { setShowPayment(false); setError(null); refocus(50); }}
-                    loading={loading} />
+                    loading={loading} serverError={error} />
             )}
             {receipt && <SaleSuccessModal receipt={receipt} currency={currency} installmentPlanId={installmentPlanId} onNewSale={() => { setReceipt(null); setInstallmentPlanId(null); refocus(100); }} />}
         </AdminLayout>
