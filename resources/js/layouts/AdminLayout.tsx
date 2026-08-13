@@ -244,6 +244,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const { theme, setTheme } = useTheme();
     const appName = props.app?.name ?? "POS System";
     const appLogo = props.app?.logo_url ?? null;
+    const user = props.auth?.user;
+    const sidebarSubtitle = user?.branch?.name
+        ?? (user?.is_super_admin || user?.is_administrator ? "All branches" : "");
 
     // tablet / restaurant / grocery / cafe / salon → bottom static nav (no sidebar)
     // mobile → keep sidebar as normal
@@ -310,9 +313,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                         </div>
                                         <div className="grid flex-1 text-left text-sm leading-tight">
                                             <span className="truncate font-semibold">{appName}</span>
-                                            <span className="truncate text-xs text-muted-foreground">
-                                                {props.auth?.user?.supplier?.name ?? "—"}
-                                            </span>
+                                            {sidebarSubtitle && (
+                                                <span className="truncate text-xs text-muted-foreground">
+                                                    {sidebarSubtitle}
+                                                </span>
+                                            )}
                                         </div>
                                     </Link>
                                 </SidebarMenuButton>

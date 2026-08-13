@@ -4,18 +4,18 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePage, Link } from "@inertiajs/react";
 import AdminLayout from "@/layouts/AdminLayout";
 import ReactApexChart from "react-apexcharts";
-import { fmtDate, manilaNow, toDateStr, manilaRange, manilaFmt } from "@/lib/date";
+import { fmtDate, toDateStr, manilaRange, manilaFmt } from "@/lib/date";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 
 import {
-    ShoppingCart, TrendingUp, TrendingDown, Package, PiggyBank,
-    Receipt, BarChart2, AlertTriangle, Users, CheckCircle2,
+    ShoppingCart, TrendingUp, TrendingDown, Package,
+    Receipt, BarChart2, AlertTriangle, Users,
     Calendar as CalendarIcon, ArrowUpRight, ArrowDownRight,
-    RefreshCw, Banknote, ClipboardList, PackageCheck,
+    RefreshCw, Banknote, ClipboardList,
     Building2, ChevronDown, Wallet, ChevronRight, CircleDot,
-    LayoutGrid, Download, ExternalLink, Zap, PackageX,
-    Clock, Activity, DollarSign, TrendingUp as TUp,
+    LayoutGrid, ExternalLink, Zap, PackageX,
+    Clock, Activity,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,12 +120,12 @@ function baseOpts(c: ReturnType<typeof useChartColors>, isDark: boolean) {
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 const accentStyles = {
-    indigo: { icon: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400", bar: "bg-indigo-500" },
-    green:  { icon: "bg-green-50  text-green-600  dark:bg-green-950/50  dark:text-green-400",  bar: "bg-green-500"  },
-    amber:  { icon: "bg-amber-50  text-amber-600  dark:bg-amber-950/50  dark:text-amber-400",  bar: "bg-amber-500"  },
-    red:    { icon: "bg-red-50    text-red-600    dark:bg-red-950/50    dark:text-red-400",    bar: "bg-red-500"    },
-    sky:    { icon: "bg-sky-50    text-sky-600    dark:bg-sky-950/50    dark:text-sky-400",    bar: "bg-sky-500"    },
-    purple: { icon: "bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400", bar: "bg-purple-500" },
+    indigo: { icon: "text-indigo-600 dark:text-indigo-300" },
+    green:  { icon: "text-emerald-600 dark:text-emerald-300" },
+    amber:  { icon: "text-amber-600 dark:text-amber-300" },
+    red:    { icon: "text-rose-600 dark:text-rose-300" },
+    sky:    { icon: "text-sky-600 dark:text-sky-300" },
+    purple: { icon: "text-violet-600 dark:text-violet-300" },
 };
 
 function KpiCard({ title, value, sub, change, icon: Icon, accent = "indigo", href, loading }: {
@@ -135,31 +135,33 @@ function KpiCard({ title, value, sub, change, icon: Icon, accent = "indigo", hre
     const style = accentStyles[accent];
     const inner = (
         <div className={cn(
-            "group relative bg-card border border-border rounded-xl p-4 transition-all duration-200 overflow-hidden h-full flex flex-col",
-            href && "cursor-pointer hover:shadow-md hover:border-primary/30",
+            "group relative h-full rounded-lg border border-border bg-card p-4 transition-colors overflow-hidden flex flex-col",
+            href && "cursor-pointer hover:border-primary/40 hover:bg-accent/20",
             loading && "animate-pulse",
         )}>
-            <div className={cn("absolute top-0 left-0 right-0 h-0.5 opacity-60", style.bar)} />
-            <div className="flex items-start justify-between gap-2 mb-2.5">
-                <p className="text-xs font-medium text-muted-foreground leading-snug pr-1">{title}</p>
-                <div className={cn("p-1.5 rounded-lg shrink-0", style.icon)}>
-                    <Icon className="h-3.5 w-3.5" />
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-muted-foreground leading-tight">{title}</p>
+                    <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground leading-none tracking-tight">{loading ? "-" : value}</p>
+                </div>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+                    <Icon className={cn("h-4 w-4", style.icon)} />
                 </div>
             </div>
-            <p className="text-2xl font-bold tabular-nums text-foreground leading-none tracking-tight flex-1">{loading ? "—" : value}</p>
-            <div className="mt-2 flex items-center gap-1.5 flex-wrap min-h-[22px]">
+            <div className="mt-3 flex items-center gap-2 flex-wrap min-h-[20px]">
                 {change !== undefined && change !== null && (
-                    <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full",
-                        change >= 0 ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                                    : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+                    <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium",
+                        change >= 0 ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-rose-600 dark:text-rose-400",
                     )}>
                         {change >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {Math.abs(change)}% vs prev period
+                        {Math.abs(change)}%
                     </span>
                 )}
+                {change !== undefined && change !== null && <span className="text-[11px] text-muted-foreground">vs previous</span>}
                 {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
             </div>
-            {href && <ChevronRight className="absolute right-3 bottom-3 h-3.5 w-3.5 text-border group-hover:text-primary transition-colors" />}
+            {href && <ChevronRight className="absolute right-3 bottom-3 h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />}
         </div>
     );
     return href ? <Link href={href}>{inner}</Link> : inner;
@@ -171,11 +173,11 @@ function ChartCard({ title, subtitle, href, children, className, action }: {
     children: React.ReactNode; className?: string; action?: React.ReactNode;
 }) {
     return (
-        <Card className={cn("rounded-xl border-border overflow-hidden", className)}>
-            <div className="flex items-start justify-between px-5 pt-4 pb-0 gap-2">
+        <Card className={cn("rounded-lg border-border overflow-hidden shadow-none", className)}>
+            <div className="flex items-start justify-between px-4 pt-4 pb-0 gap-2">
                 <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground leading-tight">{title}</p>
-                    {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
+                    {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                     {action}
@@ -197,7 +199,7 @@ function ChartCard({ title, subtitle, href, children, className, action }: {
 function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
     return (
         <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{children}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{children}</h3>
             {action}
         </div>
     );
@@ -206,27 +208,27 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
     const map: Record<string, string> = {
-        completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        paid: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-        confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-        shipped: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-        voided: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        open: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-        short: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        over: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        balanced: "bg-muted text-muted-foreground",
-        low: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-        out: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+        completed: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+        paid: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+        approved: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+        pending: "border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300",
+        confirmed: "border-sky-200 text-sky-700 dark:border-sky-900 dark:text-sky-300",
+        shipped: "border-violet-200 text-violet-700 dark:border-violet-900 dark:text-violet-300",
+        voided: "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300",
+        cancelled: "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300",
+        open: "border-sky-200 text-sky-700 dark:border-sky-900 dark:text-sky-300",
+        short: "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300",
+        over: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300",
+        balanced: "border-border text-muted-foreground",
+        low: "border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300",
+        out: "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300",
     };
-    return <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md capitalize", map[status] ?? "bg-muted text-muted-foreground")}>{status}</span>;
+    return <span className={cn("inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium capitalize", map[status] ?? "border-border text-muted-foreground")}>{status}</span>;
 }
 
 // ─── List row ─────────────────────────────────────────────────────────────────
 function ListRow({ children, last }: { children: React.ReactNode; last?: boolean }) {
-    return <div className={cn("flex items-center gap-3 py-2.5", !last && "border-b border-border/50")}>{children}</div>;
+    return <div className={cn("flex items-center gap-3 py-2.5 min-w-0", !last && "border-b border-border/60")}>{children}</div>;
 }
 
 // ─── Branch filter ────────────────────────────────────────────────────────────
@@ -381,10 +383,8 @@ export default function Dashboard() {
 
     if (!mounted || !user) return <AdminLayout><div className="min-h-screen bg-background animate-pulse" /></AdminLayout>;
 
-    const greet = () => { const h = manilaNow().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
     const selectedBranch = selectedBranchId ? branches.find(b => b.id === selectedBranchId) ?? null : null;
     const isAdmin   = user.is_super_admin || user.is_administrator;
-    const isManager = user.is_manager;
 
     // ── Chart series derived from data ────────────────────────────────────────
     const dailyDates    = data?.daily_sales.map(d => fmtDate(d.date + "T00:00:00+08:00", "MMM d")) ?? [];
@@ -396,7 +396,7 @@ export default function Dashboard() {
     const hourlyRevenue = data?.hourly_sales.map(h => h.revenue)   ?? [];
 
     const paymentLabels  = data?.payment_mix.map(p => p.method === "credit_payments" ? "Credit payments" : p.method.charAt(0).toUpperCase() + p.method.slice(1)) ?? [];
-    const paymentCounts  = data?.payment_mix.map(p => p.count)   ?? [];
+    const paymentCounts  = data?.payment_mix.map(p => p.count ?? 0)   ?? [];
     const paymentRevenue = data?.payment_mix.map(p => p.revenue) ?? [];
 
     const topNames    = data?.top_products.slice(0, 8).map(p => p.name)    ?? [];
@@ -513,33 +513,43 @@ export default function Dashboard() {
     };
 
     const kpis = data?.kpis;
+    const periodDays = data ? Math.round(data.period.days) : null;
+    const netMargin = kpis && kpis.revenue > 0 ? (kpis.net_income / kpis.revenue) * 100 : null;
+    const avgTransaction = kpis && kpis.transactions > 0 ? kpis.revenue / kpis.transactions : null;
+    const stockAttention = data ? data.stock_health.lowStock + data.stock_health.outStock : null;
 
     return (
         <AdminLayout>
-            <div className="space-y-5 pb-10 max-w-[1400px] mx-auto">
+            <div className="space-y-5 pb-10 max-w-[1440px] mx-auto">
 
                 {/* ── Page header ───────────────────────────────────────── */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <h1 className="text-xl font-bold text-foreground tracking-tight">
-                            {greet()}, {user.fname} 👋
-                        </h1>
-                        <p className="text-[13px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+                            {autoRefresh && (
+                                <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-background px-2 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                    Live
+                                </span>
+                            )}
+                        </div>
+                        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                             <span>{user.role_label}</span>
                             {!isAdmin && user.branch && (
                                 <>
-                                    <span className="text-border">·</span>
+                                    <span className="text-border">/</span>
                                     <span className="font-medium text-foreground">{user.branch.name}</span>
-                                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-sm", branchMeta[user.branch.business_type]?.color)}>
+                                    <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-medium", branchMeta[user.branch.business_type]?.color)}>
                                         {branchMeta[user.branch.business_type]?.label}
                                     </span>
                                 </>
                             )}
                             {isAdmin && (
-                                <><span className="text-border">·</span>
-                                <span className="font-medium text-primary">{selectedBranch ? selectedBranch.name : `All ${branches.length} branch${branches.length !== 1 ? "es" : ""}`}</span></>
+                                <><span className="text-border">/</span>
+                                <span className="font-medium text-foreground">{selectedBranch ? selectedBranch.name : `All ${branches.length} branch${branches.length !== 1 ? "es" : ""}`}</span></>
                             )}
-                            <span className="text-border">·</span>
+                            <span className="text-border">/</span>
                             <span>{manilaFmt("EEEE, MMM d, yyyy")}</span>
                         </p>
                     </div>
@@ -554,63 +564,74 @@ export default function Dashboard() {
                         {/* Auto-refresh toggle */}
                         <button
                             onClick={() => setAutoRefresh(v => !v)}
-                            title={autoRefresh ? "Auto-refresh ON (every 60s) — click to disable" : "Auto-refresh OFF — click to enable"}
-                            className={cn("h-8 px-2.5 flex items-center gap-1.5 rounded-lg border text-xs font-medium transition-colors",
-                                autoRefresh ? "border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400" : "border-border text-muted-foreground hover:bg-muted",
+                            title={autoRefresh ? "Auto-refresh ON (every 60s) - click to disable" : "Auto-refresh OFF - click to enable"}
+                            className={cn("h-8 px-2.5 flex items-center gap-1.5 rounded-md border text-xs font-medium transition-colors",
+                                autoRefresh ? "border-border bg-card text-foreground" : "border-border text-muted-foreground hover:bg-muted",
                             )}>
                             <Activity className="h-3.5 w-3.5" />
-                            {autoRefresh ? "Live" : "Paused"}
+                            {autoRefresh ? "Auto" : "Manual"}
                         </button>
 
                         <button
                             onClick={() => { setLoading(true); fetchData(); }}
-                            className="h-8 w-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            className="h-8 w-8 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             title="Refresh now">
                             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                         </button>
                     </div>
                 </div>
-
-                {/* Period + last refresh strip */}
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-border bg-muted/20 text-xs text-muted-foreground flex-wrap">
-                    <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                    {data ? (
-                        <span>
-                            <span className="font-semibold text-foreground">
-                                {fmtDate(data.period.from + "T00:00:00+08:00", "MMM d, yyyy")} – {fmtDate(data.period.to + "T00:00:00+08:00", "MMM d, yyyy")}
-                            </span>
-                            {" "}· {Math.round(data.period.days)} day{Math.round(data.period.days) !== 1 ? "s" : ""}
-                        </span>
-                    ) : <Skeleton className="h-4 w-48" />}
-                    <span className="ml-auto flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {lastRefresh ? `Updated ${format(lastRefresh, "h:mm:ss a")}` : "Loading…"}
-                        {autoRefresh && <span className="text-green-500 font-semibold">· Live</span>}
-                    </span>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                    <div className="rounded-lg border border-border bg-card px-4 py-3">
+                        <p className="text-[11px] font-medium text-muted-foreground">Period</p>
+                        {data ? (
+                            <p className="mt-1 text-sm font-medium text-foreground">
+                                {fmtDate(data.period.from + "T00:00:00+08:00", "MMM d")} - {fmtDate(data.period.to + "T00:00:00+08:00", "MMM d, yyyy")}
+                            </p>
+                        ) : <Skeleton className="mt-2 h-4 w-32" />}
+                    </div>
+                    <div className="rounded-lg border border-border bg-card px-4 py-3">
+                        <p className="text-[11px] font-medium text-muted-foreground">Coverage</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">{periodDays ?? "-"} day{periodDays === 1 ? "" : "s"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card px-4 py-3">
+                        <p className="text-[11px] font-medium text-muted-foreground">Net Margin</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">{netMargin === null ? "-" : `${netMargin.toFixed(1)}%`}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card px-4 py-3">
+                        <p className="text-[11px] font-medium text-muted-foreground">Avg Transaction</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">{avgTransaction === null ? "-" : fmtMoney(avgTransaction, true)}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card px-4 py-3 col-span-2 lg:col-span-1">
+                        <p className="text-[11px] font-medium text-muted-foreground">Last Update</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            {lastRefresh ? format(lastRefresh, "h:mm a") : "Loading"}
+                        </p>
+                    </div>
                 </div>
 
-                {/* ── KPI row ──────────────────────────────────────────── */}
+                {/* KPI row */}
                 <div>
-                    <SectionTitle>Performance — {data ? Math.round(data.period.days) : "—"}d period</SectionTitle>
+                    <SectionTitle>Performance - {periodDays ?? "-"}d period</SectionTitle>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
-                        <KpiCard title="Revenue"      value={kpis ? fmtMoney(kpis.revenue, true)   : "—"} change={kpis?.revenue_change}    icon={TrendingUp}   accent="green"  loading={loading} href={has("19") ? "/reports/sales"     : undefined} />
-                        <KpiCard title="Expenses"     value={kpis ? fmtMoney(kpis.expenses, true)  : "—"} change={kpis?.expenses_change}   icon={TrendingDown} accent="red"    loading={loading} href={has("21") ? "/reports/expenses"  : undefined} />
-                        <KpiCard title="Net Income"   value={kpis ? fmtMoney(kpis.net_income, true): "—"} change={kpis?.net_income_change} icon={Banknote}     accent="indigo" loading={loading} href={has("18") ? "/reports/daily"     : undefined} />
-                        <KpiCard title="Transactions" value={kpis ? fmtNum(kpis.transactions)      : "—"} change={kpis?.txn_change}        icon={ShoppingCart} accent="sky"    loading={loading} href={has("3")  ? "/sales/history"    : undefined} />
+                        <KpiCard title="Revenue"      value={kpis ? fmtMoney(kpis.revenue, true)   : "-"} change={kpis?.revenue_change}    icon={TrendingUp}   accent="green"  loading={loading} href={has("19") ? "/reports/sales"     : undefined} />
+                        <KpiCard title="Expenses"     value={kpis ? fmtMoney(kpis.expenses, true)  : "-"} change={kpis?.expenses_change}   icon={TrendingDown} accent="red"    loading={loading} href={has("21") ? "/reports/expenses"  : undefined} />
+                        <KpiCard title="Net Income"   value={kpis ? fmtMoney(kpis.net_income, true): "-"} change={kpis?.net_income_change} icon={Banknote}     accent="indigo" loading={loading} href={has("18") ? "/reports/daily"     : undefined} />
+                        <KpiCard title="Transactions" value={kpis ? fmtNum(kpis.transactions)      : "-"} change={kpis?.txn_change}        icon={ShoppingCart} accent="sky"    loading={loading} href={has("3")  ? "/sales/history"    : undefined} />
                     </div>
                 </div>
 
                 {/* Secondary KPIs */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {[
-                        { title: "Avg Daily Revenue", value: kpis ? fmtMoney(kpis.avg_daily, true) : "—",          icon: BarChart2,    accent: "sky"    as const },
-                        { title: "Total Discounts",   value: kpis ? fmtMoney(kpis.discount_total, true) : "—",     icon: Receipt,     accent: "purple" as const },
-                        { title: "Credit Collected",   value: kpis ? fmtMoney(kpis.credit_collected ?? 0, true) : "—", icon: Wallet, accent: "green" as const, href: has("39") ? "/customers" : undefined },
-                        { title: "Credit Outstanding", value: kpis ? fmtMoney(kpis.credit_outstanding ?? 0, true) : "—", icon: Clock, accent: "amber" as const, href: has("39") ? "/customers" : undefined },
-                        { title: "Voided Sales",      value: kpis ? `${fmtNum(kpis.void_count)} txns` : "—",       icon: ClipboardList, accent: "amber" as const },
-                        { title: "Voided Value",      value: kpis ? fmtMoney(kpis.void_total, true) : "—",          icon: TrendingDown, accent: "red"   as const },
-                        { title: "Stock Loss Value",  value: kpis ? fmtMoney(kpis.stock_loss_value, true) : "—",   icon: PackageX,    accent: "amber"  as const, href: has("31") ? "/reports/stock-loss" : undefined },
-                        { title: "Avg Txn Value",     value: kpis && kpis.transactions > 0 ? fmtMoney(kpis.revenue / kpis.transactions, true) : "—", icon: Zap, accent: "green" as const },
+                        { title: "Avg Daily Revenue", value: kpis ? fmtMoney(kpis.avg_daily, true) : "-",          icon: BarChart2,    accent: "sky"    as const },
+                        { title: "Total Discounts",   value: kpis ? fmtMoney(kpis.discount_total, true) : "-",     icon: Receipt,     accent: "purple" as const },
+                        { title: "Credit Collected",   value: kpis ? fmtMoney(kpis.credit_collected ?? 0, true) : "-", icon: Wallet, accent: "green" as const, href: has("39") ? "/customers" : undefined },
+                        { title: "Credit Outstanding", value: kpis ? fmtMoney(kpis.credit_outstanding ?? 0, true) : "-", icon: Clock, accent: "amber" as const, href: has("39") ? "/customers" : undefined },
+                        { title: "Voided Sales",      value: kpis ? `${fmtNum(kpis.void_count)} txns` : "-",       icon: ClipboardList, accent: "amber" as const },
+                        { title: "Voided Value",      value: kpis ? fmtMoney(kpis.void_total, true) : "-",          icon: TrendingDown, accent: "red"   as const },
+                        { title: "Stock Loss Value",  value: kpis ? fmtMoney(kpis.stock_loss_value, true) : "-",   icon: PackageX,    accent: "amber"  as const, href: has("31") ? "/reports/stock-loss" : undefined },
+                        { title: "Avg Txn Value",     value: avgTransaction === null ? "-" : fmtMoney(avgTransaction, true), icon: Zap, accent: "green" as const },
                     ].map((k, i) => (
                         <KpiCard key={i} title={k.title} value={k.value} icon={k.icon} accent={k.accent} loading={loading} href={(k as any).href} />
                     ))}
@@ -619,7 +640,7 @@ export default function Dashboard() {
                 {/* ── Revenue + Expenses area chart ─────────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <ChartCard className="lg:col-span-2"
-                        title="Revenue vs Expenses" subtitle={`Daily trend · ${data ? Math.round(data.period.days) : "—"} days`}
+                        title="Revenue vs Expenses" subtitle={`Daily trend / ${periodDays ?? "-"} days`}
                         href={has("19") ? "/reports/sales" : undefined}>
                         {loading ? <Skeleton className="h-64 w-full" /> : (
                             <ReactApexChart options={areaOpts as any}
@@ -699,14 +720,14 @@ export default function Dashboard() {
                 {/* ── Low stock + recent transactions ───────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Low stock */}
-                    <Card className="rounded-xl border-border">
+                    <Card className="rounded-lg border-border shadow-none">
                         <div className="flex items-center justify-between px-5 pt-4 pb-2">
                             <div className="flex items-center gap-2">
                                 <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                                 <div>
                                     <p className="text-sm font-semibold">Low &amp; Out of Stock</p>
                                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                                        {data ? `${(data.stock_health.lowStock + data.stock_health.outStock)} items need attention` : "—"}
+                                        {stockAttention === null ? "-" : `${stockAttention} items need attention`}
                                     </p>
                                 </div>
                             </div>
@@ -727,7 +748,7 @@ export default function Dashboard() {
                     </Card>
 
                     {/* Recent transactions */}
-                    <Card className="rounded-xl border-border">
+                    <Card className="rounded-lg border-border shadow-none">
                         <div className="flex items-center justify-between px-5 pt-4 pb-2">
                             <div>
                                 <p className="text-sm font-semibold">Recent Transactions</p>
@@ -757,7 +778,7 @@ export default function Dashboard() {
                 {/* ── Cash sessions + purchase orders ───────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {has("14") && (
-                        <Card className="rounded-xl border-border">
+                        <Card className="rounded-lg border-border shadow-none">
                             <div className="flex items-center justify-between px-5 pt-4 pb-2">
                                 <div>
                                     <p className="text-sm font-semibold">Cash Sessions</p>
@@ -774,14 +795,14 @@ export default function Dashboard() {
                                     return (
                                         <ListRow key={s.id} last={i === arr.length - 1}>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">{s.cashier || "—"}</p>
+                                                <p className="text-sm font-medium truncate">{s.cashier || "-"}</p>
                                                 <p className="text-[11px] text-muted-foreground">
-                                                    {s.opened_at ? fmtDate(s.opened_at, "MMM d, h:mm a") : "—"}
+                                                    {s.opened_at ? fmtDate(s.opened_at, "MMM d, h:mm a") : "-"}
                                                 </p>
                                             </div>
                                             <span className="text-sm font-bold tabular-nums">{fmtMoney(s.expected_cash, true)}</span>
                                             {s.status === "open" ? (
-                                                <span className="text-xs font-bold text-blue-500">● Live</span>
+                                                <span className="text-xs font-medium text-sky-600 dark:text-sky-300">Open</span>
                                             ) : overShort !== null ? (
                                                 <span className={cn("text-xs font-semibold tabular-nums", overShort >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
                                                     {overShort >= 0 ? "+" : ""}{fmtMoney(overShort, true)}
@@ -796,7 +817,7 @@ export default function Dashboard() {
                     )}
 
                     {has("12") && (
-                        <Card className="rounded-xl border-border">
+                        <Card className="rounded-lg border-border shadow-none">
                             <div className="flex items-center justify-between px-5 pt-4 pb-2">
                                 <div>
                                     <p className="text-sm font-semibold">Pending Purchase Orders</p>

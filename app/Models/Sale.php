@@ -59,6 +59,7 @@ class Sale extends Model
     public function branch(): BelongsTo           { return $this->belongsTo(Branch::class); }
     public function cashSession(): BelongsTo      { return $this->belongsTo(CashSession::class); }
     public function customer(): BelongsTo         { return $this->belongsTo(Customer::class); }
+    public function tableOrder(): HasOne          { return $this->hasOne(TableOrder::class); }
     public function items(): HasMany              { return $this->hasMany(SaleItem::class); }
     public function installmentPlan(): HasOne     { return $this->hasOne(InstallmentPlan::class); }
     public function customerPayments(): HasMany   { return $this->hasMany(CustomerPayment::class); }
