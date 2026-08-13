@@ -128,27 +128,28 @@ const accentStyles = {
     purple: { icon: "text-violet-600 dark:text-violet-300" },
 };
 
-function KpiCard({ title, value, sub, change, icon: Icon, accent = "indigo", href, loading }: {
+function KpiCard({ title, value, sub, change, icon: Icon, accent = "indigo", href, loading, compact = false }: {
     title: string; value: string | number; sub?: string; change?: number | null;
-    icon: React.ElementType; accent?: keyof typeof accentStyles; href?: string; loading?: boolean;
+    icon: React.ElementType; accent?: keyof typeof accentStyles; href?: string; loading?: boolean; compact?: boolean;
 }) {
     const style = accentStyles[accent];
     const inner = (
         <div className={cn(
-            "group relative h-full rounded-lg border border-border bg-card p-4 transition-colors overflow-hidden flex flex-col",
+            "group relative h-full rounded-lg border border-border bg-card transition-colors overflow-hidden flex flex-col",
+            compact ? "p-3" : "p-4",
             href && "cursor-pointer hover:border-primary/40 hover:bg-accent/20",
             loading && "animate-pulse",
         )}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-[11px] font-medium text-muted-foreground leading-tight">{title}</p>
-                    <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground leading-none tracking-tight">{loading ? "-" : value}</p>
+                    <p className={cn("font-semibold tabular-nums text-foreground leading-none tracking-tight", compact ? "mt-1.5 text-xl" : "mt-2 text-2xl")}>{loading ? "-" : value}</p>
                 </div>
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background">
-                    <Icon className={cn("h-4 w-4", style.icon)} />
+                <div className={cn("flex shrink-0 items-center justify-center rounded-md border border-border bg-background", compact ? "h-7 w-7" : "h-8 w-8")}>
+                    <Icon className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", style.icon)} />
                 </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 flex-wrap min-h-[20px]">
+            <div className={cn("flex items-center gap-2 flex-wrap", compact ? "mt-2 min-h-[16px]" : "mt-3 min-h-[20px]")}>
                 {change !== undefined && change !== null && (
                     <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium",
                         change >= 0 ? "text-emerald-600 dark:text-emerald-400"
@@ -622,7 +623,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Secondary KPIs */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
                     {[
                         { title: "Avg Daily Revenue", value: kpis ? fmtMoney(kpis.avg_daily, true) : "-",          icon: BarChart2,    accent: "sky"    as const },
                         { title: "Total Discounts",   value: kpis ? fmtMoney(kpis.discount_total, true) : "-",     icon: Receipt,     accent: "purple" as const },
@@ -633,7 +634,7 @@ export default function Dashboard() {
                         { title: "Stock Loss Value",  value: kpis ? fmtMoney(kpis.stock_loss_value, true) : "-",   icon: PackageX,    accent: "amber"  as const, href: has("31") ? "/reports/stock-loss" : undefined },
                         { title: "Avg Txn Value",     value: avgTransaction === null ? "-" : fmtMoney(avgTransaction, true), icon: Zap, accent: "green" as const },
                     ].map((k, i) => (
-                        <KpiCard key={i} title={k.title} value={k.value} icon={k.icon} accent={k.accent} loading={loading} href={(k as any).href} />
+                        <KpiCard key={i} title={k.title} value={k.value} icon={k.icon} accent={k.accent} loading={loading} href={(k as any).href} compact />
                     ))}
                 </div>
 
