@@ -472,7 +472,7 @@ function ActiveSessionPanel({ session, requireCount, overShortAlert, currency }:
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => router.reload({ preserveScroll: true })}
+                        <button onClick={() => router.reload()}
                             className="h-8 w-8 flex items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                             <RefreshCw className="h-3.5 w-3.5" />
                         </button>

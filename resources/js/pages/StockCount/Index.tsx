@@ -75,6 +75,7 @@ interface PageProps {
     branches:   Branch[];
     is_admin:   boolean;
     filters:    { branch_id?: string };
+    [key: string]: unknown;
 }
 
 // ── Status helpers ─────────────────────────────────────────────────────────────

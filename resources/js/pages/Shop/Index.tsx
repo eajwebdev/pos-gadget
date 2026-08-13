@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { route } from "ziggy-js";
 
 type Stock = {
   supplier_id: number;
@@ -186,7 +187,7 @@ export default function ModernShopPage({ products, suppliers, categories, userRo
         name: product.name,
         price: buyPrice,
         quantity: 1,
-        supplier: product.supplier,
+        supplier: product.supplier ?? null,
       }];
     });
 

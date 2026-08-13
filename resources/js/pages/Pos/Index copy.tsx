@@ -1634,8 +1634,8 @@ export default function PosIndex() {
 
                         {/* Products area */}
                         <div className={cn("flex-1 overflow-hidden", layout === "cafe" || layout === "restaurant" ? "" : "overflow-y-auto",
-                            layout !== "grocery" && layout !== "cafe" && layout !== "restaurant" && layout !== "salon" && layout !== "mobile" && "p-3")}>
-                            {filtered.length === 0 && layout !== "cafe" && layout !== "restaurant" && layout !== "mobile" ? (
+                            layout !== "grocery" && layout !== "cafe" && layout !== "restaurant" && layout !== "salon" && "p-3")}>
+                            {filtered.length === 0 && layout !== "cafe" && layout !== "restaurant" ? (
                                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                                     <Package className="h-10 w-10 opacity-20" />
                                     <p className="text-sm">No products found</p>

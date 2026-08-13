@@ -180,7 +180,7 @@ export default function ExpenseCategoriesIndex() {
                                             </div>
 
                                             <div className="flex items-center gap-3">
-                                                <Badge variant={cat.is_active ? "success" : "secondary"}>
+                                                <Badge variant={cat.is_active ? "outline" : "secondary"} className={cat.is_active ? "border-emerald-300 text-emerald-700 dark:border-emerald-900/70 dark:text-emerald-300" : undefined}>
                                                     {cat.is_active ? "Active" : "Inactive"}
                                                 </Badge>
 

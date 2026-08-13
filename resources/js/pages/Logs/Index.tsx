@@ -40,9 +40,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
 import { fmtDate, manilaNow } from "@/lib/date";
 import { cn } from "@/lib/utils";
+import { route } from "ziggy-js";
 
 // ──────────────────────────────────────────────── Types
 interface ActivityLog {
@@ -81,6 +82,7 @@ interface PageProps {
   usersForFilter: FilterOption[];
   actions: FilterOption[];
   filters: Record<string, any>;
+  [key: string]: unknown;
 }
 
 // ──────────────────────────────────────────────── Component
@@ -283,7 +285,7 @@ export default function LogsIndex() {
       replace: true,
       onFinish: () => setIsLoading(false),
     });
-  }, [table, selectedUser, selectedAction, dateRange, sorting, route]);
+  }, [table, selectedUser, selectedAction, dateRange, sorting]);
 
   useEffect(() => {
     const timer = setTimeout(navigate, 350);
@@ -528,7 +530,7 @@ export default function LogsIndex() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.reload({ preserveScroll: true })}
+                            onClick={() => router.reload()}
                             className="mt-4"
                           >
                             Refresh Page

@@ -50,7 +50,7 @@ export default function DailySummary({ dailySummary, branches, currentBranchId }
     if (!canGenerate) return;
 
     setLoading(true);
-    router.get(reportRoutes.daily(), filters, {
+    router.get(reportRoutes.daily(), { ...filters }, {
       preserveState: true,
       preserveScroll: true,
       onFinish: () => setLoading(false),

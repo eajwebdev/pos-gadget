@@ -76,12 +76,13 @@ interface Category {
 
 interface PageProps {
   categories: Category[];
+  [key: string]: unknown;
 }
 
 // ──────────────────────────────────────────────── Custom global filter – searches all relevant string fields
 const globalFilterAllColumns: FilterFn<Category> = (
   row: Row<Category>,
-  _columnIds: string[],
+  _columnId: string,
   filterValue: string
 ) => {
   if (!filterValue?.trim()) return true;
@@ -165,7 +166,7 @@ export default function CategoryIndex() {
         isEdit ? setEditOpen(false) : setCreateOpen(false);
         setSelected(null);
       },
-      onError: (errors) => {
+      onError: (errors: Record<string, string>) => {
         toast.error("Validation failed", {
           description: Object.values(errors).join("\n"),
           duration: 7000,
@@ -175,15 +176,15 @@ export default function CategoryIndex() {
     };
 
     if (isEdit && selected?.id) {
-      form.patch(route("category.update", selected.id), options);
+      form.patch(route("categories.update", selected.id), options);
     } else {
-      form.post(route("category.store"), options);
+      form.post(route("categories.store"), options);
     }
   };
 
   const handleDelete = () => {
     if (!selected?.id) return;
-    form.delete(route("category.destroy", selected.id), {
+    form.delete(route("categories.destroy", selected.id), {
       onSuccess: () => {
         toast.success(`${getDisplayName(selected)} deleted`);
         setDeleteOpen(false);
@@ -538,7 +539,7 @@ export default function CategoryIndex() {
                   <Label>Active?</Label>
                   <YesNoCombobox
                     value={form.data.is_active}
-                    onChange={(v) => form.setData("is_active", v)}
+                    onChange={(v) => form.setData("is_active", v as "0" | "1")}
                   />
                 </div>
               </div>

@@ -55,6 +55,7 @@ interface Purchase {
 
 interface PageProps {
     purchase: Purchase;
+    [key: string]: unknown;
 }
 
 const paymentLabel: Record<string, string> = {

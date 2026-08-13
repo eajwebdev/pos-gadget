@@ -18,7 +18,6 @@ import {
     ClipboardList,
     PackageCheck,
     Wallet,
-    Calculator,
     PiggyBank,
     Receipt,
     BarChart2,
@@ -238,27 +237,6 @@ function SubLink({
     );
 }
 
-function HeaderAction({
-    href,
-    icon: Icon,
-    label,
-}: {
-    href: string;
-    icon: React.ElementType;
-    label: string;
-}) {
-    return (
-        <Link
-            href={href}
-            title={label}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-            <Icon className="h-3.5 w-3.5" />
-            <span className="hidden xl:inline">{label}</span>
-        </Link>
-    );
-}
-
 function normalizePath(path: string): string {
     try {
         return (new URL(path, "http://pos.local")).pathname.replace(/\/$/, "") || "/";
@@ -315,13 +293,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const reportsActive = ["/reports", "/logs", "/stock-adjustments"].some(isActive);
     // Management group active
     const managementActive = ["/users", "/suppliers", "/branches", "/settings"].some(isActive);
-    const quickActions = [
-        has(MENU.POS) && { href: "/pos", icon: ShoppingCart, label: "POS" },
-        has(MENU.SALES_HISTORY) && { href: "/sales/history", icon: History, label: "Sales" },
-        has(MENU.CASH_COUNTS) && { href: "/cash-counts", icon: Calculator, label: "Cash Count" },
-        has(MENU.DAILY_SUMMARY) && { href: "/reports/daily", icon: BarChart2, label: "Daily" },
-    ].filter(Boolean) as { href: string; icon: React.ElementType; label: string }[];
-
     return (
         <SidebarProvider defaultOpen>
             <div className="flex min-h-screen w-full bg-background text-foreground">
@@ -598,12 +569,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                     {roleLabel()}{sidebarSubtitle ? ` / ${sidebarSubtitle}` : ""}
                                 </p>
                             </div>
-                        </div>
-
-                        <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 lg:flex">
-                            {quickActions.map(action => (
-                                <HeaderAction key={action.href} {...action} />
-                            ))}
                         </div>
 
                         <div className="flex items-center gap-1.5">

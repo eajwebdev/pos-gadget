@@ -64,12 +64,13 @@ interface Supplier {
 
 interface PageProps {
   suppliers: Supplier[];
+  [key: string]: unknown;
 }
 
 // ──────────────────────────────────────────────── Custom global filter – searches all relevant string fields
 const globalFilterAllColumns: FilterFn<Supplier> = (
   row: Row<Supplier>,
-  _columnIds: string[],
+  _columnId: string,
   filterValue: string
 ) => {
   if (!filterValue?.trim()) return true;
@@ -154,7 +155,7 @@ export default function SupplierIndex() {
         isEdit ? setEditOpen(false) : setCreateOpen(false);
         setSelected(null);
       },
-      onError: (errors) => {
+      onError: (errors: Record<string, string>) => {
         toast.error("Validation failed", {
           description: Object.values(errors).join("\n"),
           duration: 7000,

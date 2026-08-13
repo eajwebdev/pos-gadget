@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { cn } from "@/lib/utils";
+import { route } from "ziggy-js";
 
 interface OrderItem {
   name: string;

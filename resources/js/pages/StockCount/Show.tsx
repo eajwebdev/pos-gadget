@@ -105,6 +105,7 @@ interface PageProps {
         item_type: string;
         view: string;
     };
+    [key: string]: unknown;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ export default function StockCountShow() {
 
     // Navigate with filters — saves dirty changes first if needed
     function navigate(params: Record<string, string>, saveFirst = false) {
-        const merged = {
+        const merged: Record<string, string> = {
             search:    filters.search,
             category:  filters.category,
             item_type: filters.item_type,

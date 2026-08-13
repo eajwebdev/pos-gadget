@@ -33,6 +33,7 @@ interface PageProps {
     shop_name: string;
     currency:  string;
     app:       SharedApp;
+    [key: string]: unknown;
 }
 
 // ─── Theme palette ──────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ type LayoutId = "classic" | "magazine" | "catalog" | "dark" | "minimal" | "bold"
 
 // ─── Layout definitions ────────────────────────────────────────────────────────
 
-const LAYOUTS: { id: LayoutId; label: string; desc: string; preview: (c: string) => JSX.Element }[] = [
+const LAYOUTS: { id: LayoutId; label: string; desc: string; preview: (c: string) => React.ReactElement }[] = [
     {
         id: "classic", label: "Classic Grid", desc: "Image top, name & price below, accent bar",
         preview: c => (

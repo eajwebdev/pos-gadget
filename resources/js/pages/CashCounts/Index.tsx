@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Head, Link, router, usePage } from "@inertiajs/react";
-import AdminLayout from "@/Layouts/AdminLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,9 @@ interface OpenSession {
     gcash_system: number;
     card_system: number;
     bank_system: number;
+    remittance_bank?: number;
+    remittance_gcash?: number;
+    remittance_card?: number;
 }
 
 interface Branch {

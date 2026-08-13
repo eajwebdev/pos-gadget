@@ -143,6 +143,7 @@ export const routes = {
     // ── Expenses — ID 17 ──────────────────────────────────────────────────────
     expenses: {
         index: () => route('expenses.index'),
+        store: () => route('expenses.store'),
     },
 
     // ── Reports — IDs 18–21 (HTML views + direct PDF downloads) ───────────────
@@ -180,6 +181,7 @@ export const routes = {
         store:   ()       => route('suppliers.store'),
         update:  (id: Id) => route('suppliers.update',  { supplier: id }),
         destroy: (id: Id) => route('suppliers.destroy', { supplier: id }),
+        orders:  (id: Id) => route('suppliers.orders', { supplier: id }),
     },
 
     // ── Branches — ID 25 ──────────────────────────────────────────────────────
@@ -211,7 +213,11 @@ export const routes = {
 
     // ── Expense Categories — ID 27 ────────────────────────────────────────────
     expenseCategories: {
-        index: () => route('expense-categories.index'),
+        index:   ()       => route('expense-categories.index'),
+        store:   ()       => route('expense-categories.store'),
+        update:  (id: Id) => route('expense-categories.update', { category: id }),
+        toggle:  (id: Id) => route('expense-categories.toggle', { category: id }),
+        destroy: (id: Id) => route('expense-categories.destroy', { category: id }),
     },
 
     // ── Stock Adjustments (Losses/Damages) — ID 31 ───────────────────────────

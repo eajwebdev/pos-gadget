@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { route } from "ziggy-js";
 
 interface OrderItem {
   product_id: number;

@@ -80,6 +80,7 @@ interface PageProps {
     payables: Payable[];
     message?: { type: string; text: string };
     errors?: Record<string, string>;
+    [key: string]: unknown;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

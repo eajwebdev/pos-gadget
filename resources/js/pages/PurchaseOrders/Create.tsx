@@ -73,6 +73,7 @@ interface PageProps {
     user_branch_id: number | null;
     errors?: Record<string, string>;
     message?: { type: string; text: string };
+    [key: string]: unknown;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
